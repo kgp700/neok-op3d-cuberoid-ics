@@ -1,5 +1,32 @@
 /*  Copyright (c) 2010  Christoph Mair <christoph.mair@gmail.com>
 
+    This driver supports the bmp085 digital barometric pressure
+    and temperature sensor from Bosch Sensortec. The datasheet
+    is available from their website:
+    http://www.bosch-sensortec.com/content/language1/downloads/BST-BMP085-DS000-05.pdf
+
+    A pressure measurement is issued by reading from pressure0_input.
+    The return value ranges from 30000 to 110000 pascal with a resulution
+    of 1 pascal (0.01 millibar) which enables measurements from 9000m above
+    to 500m below sea level.
+
+    The temperature can be read from temp0_input. Values range from
+    -400 to 850 representing the ambient temperature in degree celsius
+    multiplied by 10.The resolution is 0.1 celsius.
+
+    Because ambient pressure is temperature dependent, a temperature
+    measurement will be executed automatically even if the user is reading
+    from pressure0_input. This happens if the last temperature measurement
+    has been executed more then one second ago.
+
+    To decrease RMS noise from pressure measurements, the bmp085 can
+    autonomously calculate the average of up to eight samples. This is
+    set up by writing to the oversampling sysfs file. Accepted values
+    are 0, 1, 2 and 3. 2^x when x is the value written to this file
+    specifies the number of samples used to calculate the ambient pressure.
+    RMS noise is specified with six pascal (without averaging) and decreases
+    down to 3 pascal when using an oversampling setting of 3.
+
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation; either version 2 of the License, or
@@ -60,7 +87,7 @@ struct bmp085_data {
 	u32 raw_temperature;
 	u32 raw_pressure;
 	unsigned char oversampling_setting;
-	unsigned long last_temp_measurement;
+	u32 last_temp_measurement;
 	s32 b6; /* calculated temperature correction coefficient */
 };
 
@@ -144,7 +171,7 @@ static s32 bmp085_update_raw_pressure(struct bmp085_data *data)
 	}
 
 	/* wait for the end of conversion */
-	msleep(2+(3 << data->oversampling_setting<<1));
+	msleep(2+(3 << data->oversampling_setting));
 
 	/* copy data into a u32 (4 bytes), but skip the first byte. */
 	status = i2c_smbus_read_i2c_block_data(data->client,
@@ -252,7 +279,7 @@ exit:
 
 /*
  * This function sets the chip-internal oversampling. Valid values are 0..3.
- * The chip will use 2^oversampling samples for interlan averaging.
+ * The chip will use 2^oversampling samples for internal averaging.
  * This influences the measurement time and the accuracy; larger values
  * increase both. The datasheet gives on overview on how measurement time,
  * accuracy and noise correlate.
@@ -375,7 +402,7 @@ exit:
 	return status;
 }
 
-static int bmp085_probe(struct i2c_client *client,
+static int __devinit bmp085_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
 	struct bmp085_data *data;
@@ -402,7 +429,7 @@ static int bmp085_probe(struct i2c_client *client,
 	if (err)
 		goto exit_free;
 
-	dev_info(&data->client->dev, "Succesfully initialized bmp085!\n");
+	dev_info(&data->client->dev, "Successfully initialized bmp085!\n");
 	goto exit;
 
 exit_free:
@@ -411,7 +438,7 @@ exit:
 	return err;
 }
 
-static int bmp085_remove(struct i2c_client *client)
+static int __devexit bmp085_remove(struct i2c_client *client)
 {
 	sysfs_remove_group(&client->dev.kobj, &bmp085_attr_group);
 	kfree(i2c_get_clientdata(client));
@@ -422,6 +449,7 @@ static const struct i2c_device_id bmp085_id[] = {
 	{ "bmp085", 0 },
 	{ }
 };
+MODULE_DEVICE_TABLE(i2c, bmp085_id);
 
 static struct i2c_driver bmp085_driver = {
 	.driver = {
@@ -430,7 +458,7 @@ static struct i2c_driver bmp085_driver = {
 	},
 	.id_table	= bmp085_id,
 	.probe		= bmp085_probe,
-	.remove		= bmp085_remove,
+	.remove		= __devexit_p(bmp085_remove),
 
 	.detect		= bmp085_detect,
 	.address_list	= normal_i2c

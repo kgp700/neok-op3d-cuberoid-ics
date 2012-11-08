@@ -25,7 +25,6 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 #include <sound/initval.h>
 #include <sound/tlv.h>
 
@@ -34,8 +33,6 @@
 /* codec private data */
 struct wm8776_priv {
 	enum snd_soc_control_type control_type;
-	void *control_data;
-	u16 reg_cache[WM8776_CACHEREGNUM];
 	int sysclk[2];
 };
 
@@ -308,7 +305,7 @@ static int wm8776_set_bias_level(struct snd_soc_codec *codec,
 	case SND_SOC_BIAS_PREPARE:
 		break;
 	case SND_SOC_BIAS_STANDBY:
-		if (codec->dapm->bias_level == SND_SOC_BIAS_OFF) {
+		if (codec->dapm.bias_level == SND_SOC_BIAS_OFF) {
 			/* Disable the global powerdown; DAPM does the rest */
 			snd_soc_update_bits(codec, WM8776_PWRDOWN, 1, 0);
 		}
@@ -319,7 +316,7 @@ static int wm8776_set_bias_level(struct snd_soc_codec *codec,
 		break;
 	}
 
-	codec->dapm->bias_level = level;
+	codec->dapm.bias_level = level;
 	return 0;
 }
 
@@ -406,9 +403,9 @@ static int wm8776_resume(struct snd_soc_codec *codec)
 static int wm8776_probe(struct snd_soc_codec *codec)
 {
 	struct wm8776_priv *wm8776 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_dapm_context *dapm = &codec->dapm;
 	int ret = 0;
 
-	codec->control_data = wm8776->control_data;
 	ret = snd_soc_codec_set_cache_io(codec, 7, 9, wm8776->control_type);
 	if (ret < 0) {
 		dev_err(codec->dev, "Failed to set cache I/O: %d\n", ret);
@@ -430,9 +427,9 @@ static int wm8776_probe(struct snd_soc_codec *codec)
 
 	snd_soc_add_controls(codec, wm8776_snd_controls,
 			     ARRAY_SIZE(wm8776_snd_controls));
-	snd_soc_dapm_new_controls(codec->dapm, wm8776_dapm_widgets,
+	snd_soc_dapm_new_controls(dapm, wm8776_dapm_widgets,
 				  ARRAY_SIZE(wm8776_dapm_widgets));
-	snd_soc_dapm_add_routes(codec->dapm, routes, ARRAY_SIZE(routes));
+	snd_soc_dapm_add_routes(dapm, routes, ARRAY_SIZE(routes));
 
 	return ret;
 }
@@ -450,7 +447,7 @@ static struct snd_soc_codec_driver soc_codec_dev_wm8776 = {
 	.suspend = 	wm8776_suspend,
 	.resume =	wm8776_resume,
 	.set_bias_level = wm8776_set_bias_level,
-	.reg_cache_size = sizeof(wm8776_reg),
+	.reg_cache_size = ARRAY_SIZE(wm8776_reg),
 	.reg_word_size = sizeof(u16),
 	.reg_cache_default = wm8776_reg,
 };
@@ -465,7 +462,6 @@ static int __devinit wm8776_spi_probe(struct spi_device *spi)
 	if (wm8776 == NULL)
 		return -ENOMEM;
 
-	wm8776->control_data = spi;
 	wm8776->control_type = SND_SOC_SPI;
 	spi_set_drvdata(spi, wm8776);
 
@@ -486,7 +482,6 @@ static int __devexit wm8776_spi_remove(struct spi_device *spi)
 static struct spi_driver wm8776_spi_driver = {
 	.driver = {
 		.name	= "wm8776-codec",
-		.bus	= &spi_bus_type,
 		.owner	= THIS_MODULE,
 	},
 	.probe		= wm8776_spi_probe,
@@ -506,7 +501,6 @@ static __devinit int wm8776_i2c_probe(struct i2c_client *i2c,
 		return -ENOMEM;
 
 	i2c_set_clientdata(i2c, wm8776);
-	wm8776->control_data = i2c;
 	wm8776->control_type = SND_SOC_I2C;
 
 	ret =  snd_soc_register_codec(&i2c->dev,

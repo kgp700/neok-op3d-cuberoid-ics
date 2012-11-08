@@ -24,7 +24,6 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 #include <sound/initval.h>
 #include <sound/tlv.h>
 
@@ -36,16 +35,14 @@ static const char *wm8741_supply_names[WM8741_NUM_SUPPLIES] = {
 	"DVDD",
 };
 
-#define WM8741_NUM_RATES 4
+#define WM8741_NUM_RATES 6
 
 /* codec private data */
 struct wm8741_priv {
 	enum snd_soc_control_type control_type;
-	u16 reg_cache[WM8741_REGISTER_COUNT];
 	struct regulator_bulk_data supplies[WM8741_NUM_SUPPLIES];
 	unsigned int sysclk;
-	unsigned int rate_constraint_list[WM8741_NUM_RATES];
-	struct snd_pcm_hw_constraint_list rate_constraint;
+	struct snd_pcm_hw_constraint_list *sysclk_constraints;
 };
 
 static const u16 wm8741_reg_defaults[WM8741_REGISTER_COUNT] = {
@@ -96,10 +93,11 @@ static const struct snd_soc_dapm_route intercon[] = {
 
 static int wm8741_add_widgets(struct snd_soc_codec *codec)
 {
-	snd_soc_dapm_new_controls(codec, wm8741_dapm_widgets,
-				  ARRAY_SIZE(wm8741_dapm_widgets));
+	struct snd_soc_dapm_context *dapm = &codec->dapm;
 
-	snd_soc_dapm_add_routes(codec, intercon, ARRAY_SIZE(intercon));
+	snd_soc_dapm_new_controls(dapm, wm8741_dapm_widgets,
+				  ARRAY_SIZE(wm8741_dapm_widgets));
+	snd_soc_dapm_add_routes(dapm, intercon, ARRAY_SIZE(intercon));
 
 	return 0;
 }
@@ -108,10 +106,84 @@ static struct {
 	int value;
 	int ratio;
 } lrclk_ratios[WM8741_NUM_RATES] = {
-	{ 1, 256 },
-	{ 2, 384 },
-	{ 3, 512 },
-	{ 4, 768 },
+	{ 1, 128 },
+	{ 2, 192 },
+	{ 3, 256 },
+	{ 4, 384 },
+	{ 5, 512 },
+	{ 6, 768 },
+};
+
+static unsigned int rates_11289[] = {
+	44100, 88235,
+};
+
+static struct snd_pcm_hw_constraint_list constraints_11289 = {
+	.count	= ARRAY_SIZE(rates_11289),
+	.list	= rates_11289,
+};
+
+static unsigned int rates_12288[] = {
+	32000, 48000, 96000,
+};
+
+static struct snd_pcm_hw_constraint_list constraints_12288 = {
+	.count	= ARRAY_SIZE(rates_12288),
+	.list	= rates_12288,
+};
+
+static unsigned int rates_16384[] = {
+	32000,
+};
+
+static struct snd_pcm_hw_constraint_list constraints_16384 = {
+	.count	= ARRAY_SIZE(rates_16384),
+	.list	= rates_16384,
+};
+
+static unsigned int rates_16934[] = {
+	44100, 88235,
+};
+
+static struct snd_pcm_hw_constraint_list constraints_16934 = {
+	.count	= ARRAY_SIZE(rates_16934),
+	.list	= rates_16934,
+};
+
+static unsigned int rates_18432[] = {
+	48000, 96000,
+};
+
+static struct snd_pcm_hw_constraint_list constraints_18432 = {
+	.count	= ARRAY_SIZE(rates_18432),
+	.list	= rates_18432,
+};
+
+static unsigned int rates_22579[] = {
+	44100, 88235, 1764000
+};
+
+static struct snd_pcm_hw_constraint_list constraints_22579 = {
+	.count	= ARRAY_SIZE(rates_22579),
+	.list	= rates_22579,
+};
+
+static unsigned int rates_24576[] = {
+	32000, 48000, 96000, 192000
+};
+
+static struct snd_pcm_hw_constraint_list constraints_24576 = {
+	.count	= ARRAY_SIZE(rates_24576),
+	.list	= rates_24576,
+};
+
+static unsigned int rates_36864[] = {
+	48000, 96000, 19200
+};
+
+static struct snd_pcm_hw_constraint_list constraints_36864 = {
+	.count	= ARRAY_SIZE(rates_36864),
+	.list	= rates_36864,
 };
 
 
@@ -132,7 +204,7 @@ static int wm8741_startup(struct snd_pcm_substream *substream,
 
 	snd_pcm_hw_constraint_list(substream->runtime, 0,
 				   SNDRV_PCM_HW_PARAM_RATE,
-				   &wm8741->rate_constraint);
+				   wm8741->sysclk_constraints);
 
 	return 0;
 }
@@ -192,47 +264,52 @@ static int wm8741_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 {
 	struct snd_soc_codec *codec = codec_dai->codec;
 	struct wm8741_priv *wm8741 = snd_soc_codec_get_drvdata(codec);
-	unsigned int val;
-	int i;
 
 	dev_dbg(codec->dev, "wm8741_set_dai_sysclk info: freq=%dHz\n", freq);
 
-	wm8741->sysclk = freq;
+	switch (freq) {
+	case 11289600:
+		wm8741->sysclk_constraints = &constraints_11289;
+		wm8741->sysclk = freq;
+		return 0;
 
-	wm8741->rate_constraint.count = 0;
+	case 12288000:
+		wm8741->sysclk_constraints = &constraints_12288;
+		wm8741->sysclk = freq;
+		return 0;
 
-	for (i = 0; i < ARRAY_SIZE(lrclk_ratios); i++) {
-		dev_dbg(codec->dev, "index = %d, ratio = %d, freq = %d",
-				i, lrclk_ratios[i].ratio, freq);
+	case 16384000:
+		wm8741->sysclk_constraints = &constraints_16384;
+		wm8741->sysclk = freq;
+		return 0;
 
-		val = freq / lrclk_ratios[i].ratio;
-		/* Check that it's a standard rate since core can't
-		 * cope with others and having the odd rates confuses
-		 * constraint matching.
-		 */
-		switch (val) {
-		case 32000:
-		case 44100:
-		case 48000:
-		case 64000:
-		case 88200:
-		case 96000:
-			dev_dbg(codec->dev, "Supported sample rate: %dHz\n",
-				val);
-			wm8741->rate_constraint_list[i] = val;
-			wm8741->rate_constraint.count++;
-			break;
-		default:
-			dev_dbg(codec->dev, "Skipping sample rate: %dHz\n",
-				val);
-		}
+	case 16934400:
+		wm8741->sysclk_constraints = &constraints_16934;
+		wm8741->sysclk = freq;
+		return 0;
+
+	case 18432000:
+		wm8741->sysclk_constraints = &constraints_18432;
+		wm8741->sysclk = freq;
+		return 0;
+
+	case 22579200:
+	case 33868800:
+		wm8741->sysclk_constraints = &constraints_22579;
+		wm8741->sysclk = freq;
+		return 0;
+
+	case 24576000:
+		wm8741->sysclk_constraints = &constraints_24576;
+		wm8741->sysclk = freq;
+		return 0;
+
+	case 36864000:
+		wm8741->sysclk_constraints = &constraints_36864;
+		wm8741->sysclk = freq;
+		return 0;
 	}
-
-	/* Need at least one supported rate... */
-	if (wm8741->rate_constraint.count == 0)
-		return -EINVAL;
-
-	return 0;
+	return -EINVAL;
 }
 
 static int wm8741_set_dai_fmt(struct snd_soc_dai *codec_dai,
@@ -260,10 +337,10 @@ static int wm8741_set_dai_fmt(struct snd_soc_dai *codec_dai,
 		iface |= 0x0004;
 		break;
 	case SND_SOC_DAIFMT_DSP_A:
-		iface |= 0x0003;
+		iface |= 0x000C;
 		break;
 	case SND_SOC_DAIFMT_DSP_B:
-		iface |= 0x0013;
+		iface |= 0x001C;
 		break;
 	default:
 		return -EINVAL;
@@ -311,7 +388,7 @@ static struct snd_soc_dai_ops wm8741_dai_ops = {
 };
 
 static struct snd_soc_dai_driver wm8741_dai = {
-	.name = "WM8741",
+	.name = "wm8741",
 	.playback = {
 		.stream_name = "Playback",
 		.channels_min = 2,  /* Mono modes not yet supported */
@@ -359,10 +436,14 @@ static int wm8741_probe(struct snd_soc_codec *codec)
 	}
 
 	/* Change some default settings - latch VU */
-	wm8741->reg_cache[WM8741_DACLLSB_ATTENUATION] |= WM8741_UPDATELL;
-	wm8741->reg_cache[WM8741_DACLMSB_ATTENUATION] |= WM8741_UPDATELM;
-	wm8741->reg_cache[WM8741_DACRLSB_ATTENUATION] |= WM8741_UPDATERL;
-	wm8741->reg_cache[WM8741_DACRLSB_ATTENUATION] |= WM8741_UPDATERM;
+	snd_soc_update_bits(codec, WM8741_DACLLSB_ATTENUATION,
+			    WM8741_UPDATELL, WM8741_UPDATELL);
+	snd_soc_update_bits(codec, WM8741_DACLMSB_ATTENUATION,
+			    WM8741_UPDATELM, WM8741_UPDATELM);
+	snd_soc_update_bits(codec, WM8741_DACRLSB_ATTENUATION,
+			    WM8741_UPDATERL, WM8741_UPDATERL);
+	snd_soc_update_bits(codec, WM8741_DACRLSB_ATTENUATION,
+			    WM8741_UPDATERM, WM8741_UPDATERM);
 
 	snd_soc_add_controls(codec, wm8741_snd_controls,
 			     ARRAY_SIZE(wm8741_snd_controls));
@@ -375,9 +456,9 @@ static int wm8741_probe(struct snd_soc_codec *codec)
 static struct snd_soc_codec_driver soc_codec_dev_wm8741 = {
 	.probe =	wm8741_probe,
 	.resume =	wm8741_resume,
-	.reg_cache_size = sizeof(wm8741_reg_defaults),
+	.reg_cache_size = ARRAY_SIZE(wm8741_reg_defaults),
 	.reg_word_size = sizeof(u16),
-	.reg_cache_default = &wm8741_reg_defaults,
+	.reg_cache_default = wm8741_reg_defaults,
 };
 
 #if defined(CONFIG_I2C) || defined(CONFIG_I2C_MODULE)
@@ -390,10 +471,6 @@ static int wm8741_i2c_probe(struct i2c_client *i2c,
 	wm8741 = kzalloc(sizeof(struct wm8741_priv), GFP_KERNEL);
 	if (wm8741 == NULL)
 		return -ENOMEM;
-
-	wm8741->rate_constraint.list = &wm8741->rate_constraint_list[0];
-	wm8741->rate_constraint.count =
-		ARRAY_SIZE(wm8741->rate_constraint_list);
 
 	for (i = 0; i < ARRAY_SIZE(wm8741->supplies); i++)
 		wm8741->supplies[i].supply = wm8741_supply_names[i];
@@ -464,9 +541,8 @@ static int __init wm8741_modinit(void)
 
 #if defined(CONFIG_I2C) || defined(CONFIG_I2C_MODULE)
 	ret = i2c_add_driver(&wm8741_i2c_driver);
-	if (ret != 0) {
+	if (ret != 0)
 		pr_err("Failed to register WM8741 I2C driver: %d\n", ret);
-	}
 #endif
 
 	return ret;

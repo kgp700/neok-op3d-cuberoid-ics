@@ -18,7 +18,7 @@
 
 #include <sound/core.h>
 #include <sound/initval.h>
-#include <sound/soc-dapm.h>
+#include <sound/soc.h>
 
 #include "cx20442.h"
 
@@ -26,7 +26,6 @@
 struct cx20442_priv {
 	enum snd_soc_control_type control_type;
 	void *control_data;
-	u8 reg_cache[1];
 };
 
 #define CX20442_PM		0x0
@@ -86,17 +85,6 @@ static const struct snd_soc_dapm_route cx20442_audio_map[] = {
 
 	{"ADC", NULL, "Input Mixer"},
 };
-
-static int cx20442_add_widgets(struct snd_soc_codec *codec)
-{
-	snd_soc_dapm_new_controls(codec->dapm, cx20442_dapm_widgets,
-				  ARRAY_SIZE(cx20442_dapm_widgets));
-
-	snd_soc_dapm_add_routes(codec->dapm, cx20442_audio_map,
-				ARRAY_SIZE(cx20442_audio_map));
-
-	return 0;
-}
 
 static unsigned int cx20442_read_reg_cache(struct snd_soc_codec *codec,
 							unsigned int reg)
@@ -165,6 +153,7 @@ static int cx20442_pm_to_v253_vsp(u8 value)
 static int cx20442_write(struct snd_soc_codec *codec, unsigned int reg,
 							unsigned int value)
 {
+	struct cx20442_priv *cx20442 = snd_soc_codec_get_drvdata(codec);
 	u8 *reg_cache = codec->reg_cache;
 	int vls, vsp, old, len;
 	char buf[18];
@@ -174,7 +163,7 @@ static int cx20442_write(struct snd_soc_codec *codec, unsigned int reg,
 
 	/* hw_write and control_data pointers required for talking to the modem
 	 * are expected to be set by the line discipline initialization code */
-	if (!codec->hw_write || !codec->control_data)
+	if (!codec->hw_write || !cx20442->control_data)
 		return -EIO;
 
 	old = reg_cache[reg];
@@ -203,15 +192,11 @@ static int cx20442_write(struct snd_soc_codec *codec, unsigned int reg,
 		return -ENOMEM;
 
 	dev_dbg(codec->dev, "%s: %s\n", __func__, buf);
-	if (codec->hw_write(codec->control_data, buf, len) != len)
+	if (codec->hw_write(cx20442->control_data, buf, len) != len)
 		return -EIO;
 
 	return 0;
 }
-
-
-/* Moved up here as line discipline referres it during initialization */
-static struct snd_soc_codec *cx20442_codec;
 
 
 /*
@@ -229,15 +214,15 @@ static const char *v253_init = "ate0m0q0+fclass=8\r";
 /* Line discipline .open() */
 static int v253_open(struct tty_struct *tty)
 {
-	struct snd_soc_codec *codec = cx20442_codec;
 	int ret, len = strlen(v253_init);
 
 	/* Doesn't make sense without write callback */
 	if (!tty->ops->write)
 		return -EINVAL;
 
-	/* Pass the codec structure address for use by other ldisc callbacks */
-	tty->disc_data = codec;
+	/* Won't work if no codec pointer has been passed by a card driver */
+	if (!tty->disc_data)
+		return -ENODEV;
 
 	if (tty->ops->write(tty, v253_init, len) != len) {
 		ret = -EIO;
@@ -254,16 +239,19 @@ err:
 static void v253_close(struct tty_struct *tty)
 {
 	struct snd_soc_codec *codec = tty->disc_data;
+	struct cx20442_priv *cx20442;
 
 	tty->disc_data = NULL;
 
 	if (!codec)
 		return;
 
+	cx20442 = snd_soc_codec_get_drvdata(codec);
+
 	/* Prevent the codec driver from further accessing the modem */
 	codec->hw_write = NULL;
-	codec->control_data = NULL;
-	codec->pop_time = 0;
+	cx20442->control_data = NULL;
+	codec->card->pop_time = 0;
 }
 
 /* Line discipline .hangup() */
@@ -278,17 +266,20 @@ static void v253_receive(struct tty_struct *tty,
 				const unsigned char *cp, char *fp, int count)
 {
 	struct snd_soc_codec *codec = tty->disc_data;
+	struct cx20442_priv *cx20442;
 
 	if (!codec)
 		return;
 
-	if (!codec->control_data) {
+	cx20442 = snd_soc_codec_get_drvdata(codec);
+
+	if (!cx20442->control_data) {
 		/* First modem response, complete setup procedure */
 
 		/* Set up codec driver access to modem controls */
-		codec->control_data = tty;
+		cx20442->control_data = tty;
 		codec->hw_write = (hw_write_t)tty->ops->write;
-		codec->pop_time = 1;
+		codec->card->pop_time = 1;
 	}
 }
 
@@ -315,7 +306,7 @@ EXPORT_SYMBOL_GPL(v253_ops);
  */
 
 static struct snd_soc_dai_driver cx20442_dai = {
-	.name = "cx20442-hifi",
+	.name = "cx20442-voice",
 	.playback = {
 		.stream_name = "Playback",
 		.channels_min = 1,
@@ -341,11 +332,9 @@ static int cx20442_codec_probe(struct snd_soc_codec *codec)
 		return -ENOMEM;
 	snd_soc_codec_set_drvdata(codec, cx20442);
 
-	cx20442_add_widgets(codec);
-
-	codec->control_data = NULL;
+	cx20442->control_data = NULL;
 	codec->hw_write = NULL;
-	codec->pop_time = 0;
+	codec->card->pop_time = 0;
 
 	return 0;
 }
@@ -355,8 +344,8 @@ static int cx20442_codec_remove(struct snd_soc_codec *codec)
 {
 	struct cx20442_priv *cx20442 = snd_soc_codec_get_drvdata(codec);
 
-	if (codec->control_data) {
-			struct tty_struct *tty = codec->control_data;
+	if (cx20442->control_data) {
+			struct tty_struct *tty = cx20442->control_data;
 			tty_hangup(tty);
 	}
 
@@ -364,13 +353,20 @@ static int cx20442_codec_remove(struct snd_soc_codec *codec)
 	return 0;
 }
 
+static const u8 cx20442_reg;
+
 static struct snd_soc_codec_driver cx20442_codec_dev = {
 	.probe = 	cx20442_codec_probe,
 	.remove = 	cx20442_codec_remove,
+	.reg_cache_default = &cx20442_reg,
 	.reg_cache_size = 1,
 	.reg_word_size = sizeof(u8),
 	.read = cx20442_read_reg_cache,
 	.write = cx20442_write,
+	.dapm_widgets = cx20442_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(cx20442_dapm_widgets),
+	.dapm_routes = cx20442_audio_map,
+	.num_dapm_routes = ARRAY_SIZE(cx20442_audio_map),
 };
 
 static int cx20442_platform_probe(struct platform_device *pdev)

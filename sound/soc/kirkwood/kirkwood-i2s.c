@@ -2,6 +2,7 @@
  * kirkwood-i2s.c
  *
  * (c) 2010 Arnaud Patard <apatard@mandriva.com>
+ * (c) 2010 Arnaud Patard <arnaud.patard@rtp-net.org>
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -22,7 +23,7 @@
 #include <plat/audio.h>
 #include "kirkwood.h"
 
-#define DRV_NAME	"kirkwood-i2s-dai"
+#define DRV_NAME	"kirkwood-i2s"
 
 #define KIRKWOOD_I2S_RATES \
 	(SNDRV_PCM_RATE_44100 | \
@@ -495,7 +496,7 @@ static void __exit kirkwood_i2s_exit(void)
 module_exit(kirkwood_i2s_exit);
 
 /* Module information */
-MODULE_AUTHOR("Arnaud Patard, <apatard@mandriva.com>");
+MODULE_AUTHOR("Arnaud Patard, <arnaud.patard@rtp-net.org>");
 MODULE_DESCRIPTION("Kirkwood I2S SoC Interface");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:kirkwood-i2s");

@@ -35,7 +35,6 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 #include <sound/initval.h>
 #include <sound/tlv.h>
 
@@ -43,7 +42,6 @@
 
 struct wm8940_priv {
 	unsigned int sysclk;
-	u16 reg_cache[WM8940_CACHEREGNUM];
 	enum snd_soc_control_type control_type;
 	void *control_data;
 };
@@ -291,13 +289,14 @@ static const struct snd_soc_dapm_route audio_map[] = {
 
 static int wm8940_add_widgets(struct snd_soc_codec *codec)
 {
+	struct snd_soc_dapm_context *dapm = &codec->dapm;
 	int ret;
 
-	ret = snd_soc_dapm_new_controls(codec->dapm, wm8940_dapm_widgets,
+	ret = snd_soc_dapm_new_controls(dapm, wm8940_dapm_widgets,
 					ARRAY_SIZE(wm8940_dapm_widgets));
 	if (ret)
 		goto error_ret;
-	ret = snd_soc_dapm_add_routes(codec->dapm, audio_map, ARRAY_SIZE(audio_map));
+	ret = snd_soc_dapm_add_routes(dapm, audio_map, ARRAY_SIZE(audio_map));
 	if (ret)
 		goto error_ret;
 
@@ -472,6 +471,8 @@ static int wm8940_set_bias_level(struct snd_soc_codec *codec,
 		ret = snd_soc_write(codec, WM8940_POWER1, pwr_reg);
 		break;
 	}
+
+	codec->dapm.bias_level = level;
 
 	return ret;
 }
@@ -735,7 +736,6 @@ static int wm8940_probe(struct snd_soc_codec *codec)
 		return ret;
 
 	return ret;
-;
 }
 
 static int wm8940_remove(struct snd_soc_codec *codec)
@@ -750,7 +750,7 @@ static struct snd_soc_codec_driver soc_codec_dev_wm8940 = {
 	.suspend =	wm8940_suspend,
 	.resume =	wm8940_resume,
 	.set_bias_level = wm8940_set_bias_level,
-	.reg_cache_size = sizeof(wm8940_reg_defaults),
+	.reg_cache_size = ARRAY_SIZE(wm8940_reg_defaults),
 	.reg_word_size = sizeof(u16),
 	.reg_cache_default = wm8940_reg_defaults,
 };
@@ -768,6 +768,7 @@ static __devinit int wm8940_i2c_probe(struct i2c_client *i2c,
 
 	i2c_set_clientdata(i2c, wm8940);
 	wm8940->control_data = i2c;
+	wm8940->control_type = SND_SOC_I2C;
 
 	ret = snd_soc_register_codec(&i2c->dev,
 			&soc_codec_dev_wm8940, &wm8940_dai, 1);

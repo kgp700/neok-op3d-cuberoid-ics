@@ -28,6 +28,8 @@ source "drivers/ata/Kconfig"
 
 source "drivers/md/Kconfig"
 
+source "drivers/target/Kconfig"
+
 source "drivers/message/fusion/Kconfig"
 
 source "drivers/firewire/Kconfig"
@@ -54,12 +56,13 @@ source "drivers/spi/Kconfig"
 
 source "drivers/pps/Kconfig"
 
+source "drivers/ptp/Kconfig"
+
 source "drivers/gpio/Kconfig"
 
 source "drivers/w1/Kconfig"
 
 source "drivers/power/Kconfig"
-source "drivers/cosmo/Kconfig"
 
 source "drivers/hwmon/Kconfig"
 
@@ -68,6 +71,8 @@ source "drivers/thermal/Kconfig"
 source "drivers/watchdog/Kconfig"
 
 source "drivers/ssb/Kconfig"
+
+source "drivers/bcma/Kconfig"
 
 source "drivers/mfd/Kconfig"
 
@@ -91,7 +96,11 @@ source "drivers/memstick/Kconfig"
 
 source "drivers/leds/Kconfig"
 
+source "drivers/nfc/Kconfig"
+
 source "drivers/switch/Kconfig"
+
+source "drivers/muic/Kconfig"
 
 source "drivers/accessibility/Kconfig"
 
@@ -117,12 +126,27 @@ source "drivers/staging/Kconfig"
 
 source "drivers/platform/Kconfig"
 
-source "drivers/dsp/syslink/Kconfig"
+source "drivers/clk/Kconfig"
 
-source "drivers/nfc/Kconfig"
+source "drivers/hwspinlock/Kconfig"
 
-# LGE_FW_TDMB
+source "drivers/clocksource/Kconfig"
+
+source "drivers/remoteproc/Kconfig"
+
+source "drivers/virtio/Kconfig"
+
+source "drivers/rpmsg/Kconfig"
+
+source "drivers/omap_hsi/Kconfig"
+
+source "drivers/lge/Kconfig"
+
+# LGE_BROADCAST {
 source "drivers/broadcast/Kconfig"
-# LGE_FW_TDMB
+# LGE_BROADCAST }
+endmenu
 
+menu "FeliCa"
+source "drivers/felica/Kconfig"
 endmenu

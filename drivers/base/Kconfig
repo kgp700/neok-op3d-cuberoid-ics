@@ -39,7 +39,6 @@ config DEVTMPFS
 config DEVTMPFS_MOUNT
 	bool "Automount devtmpfs at /dev, after the kernel mounted the rootfs"
 	depends on DEVTMPFS
-	default y
 	help
 	  This will instruct the kernel to automatically mount the
 	  devtmpfs filesystem at /dev, directly after the kernel has
@@ -71,8 +70,7 @@ config PREVENT_FIRMWARE_BUILD
 	  If unsure say Y here.
 
 config FW_LOADER
-	tristate "Userspace firmware loading support" if EMBEDDED
-	depends on HOTPLUG
+	tristate "Userspace firmware loading support" if EXPERT
 	default y
 	---help---
 	  This option is provided for the case where no in-kernel-tree modules

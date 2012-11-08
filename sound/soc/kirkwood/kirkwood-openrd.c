@@ -2,6 +2,7 @@
  * kirkwood-openrd.c
  *
  * (c) 2010 Arnaud Patard <apatard@mandriva.com>
+ * (c) 2010 Arnaud Patard <arnaud.patard@rtp-net.org>
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -64,10 +65,10 @@ static struct snd_soc_dai_link openrd_client_dai[] = {
 {
 	.name = "CS42L51",
 	.stream_name = "CS42L51 HiFi",
-	.cpu_dai_name = "kirkwood-i2s-dai",
+	.cpu_dai_name = "kirkwood-i2s",
 	.platform_name = "kirkwood-pcm-audio",
-	.codec_dai_name = "cs42l51_hifi",
-	.codec_name = "cs42l51-codec.0-0x4a",
+	.codec_dai_name = "cs42l51-hifi",
+	.codec_name = "cs42l51-codec.0-004a",
 	.ops = &openrd_client_ops,
 },
 };
@@ -85,7 +86,7 @@ static int __init openrd_client_init(void)
 {
 	int ret;
 
-	if (!machine_is_openrd_client())
+	if (!machine_is_openrd_client() && !machine_is_openrd_ultimate())
 		return 0;
 
 	openrd_client_snd_device = platform_device_alloc("soc-audio", -1);
@@ -113,7 +114,7 @@ module_init(openrd_client_init);
 module_exit(openrd_client_exit);
 
 /* Module information */
-MODULE_AUTHOR("Arnaud Patard <apatard@mandriva.com>");
+MODULE_AUTHOR("Arnaud Patard <arnaud.patard@rtp-net.org>");
 MODULE_DESCRIPTION("ALSA SoC OpenRD Client");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:soc-audio");

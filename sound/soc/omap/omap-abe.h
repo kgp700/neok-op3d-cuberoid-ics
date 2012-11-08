@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2010 Texas Instruments
  *
- * Contact: Liam Girdwood <lrg@slimlogic.co.uk>
+ * Contact: Liam Girdwood <lrg@ti.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,7 +30,8 @@
 #define ABE_FRONTEND_DAI_TONES		3
 #define ABE_FRONTEND_DAI_VIBRA		4
 #define ABE_FRONTEND_DAI_MODEM		5
-#define ABE_FRONTEND_DAI_LP_MEDIA		6
+#define ABE_FRONTEND_DAI_LP_MEDIA	6
+#define ABE_FRONTEND_DAI_NUM		7
 
 /* This must currently match the BE order in DSP */
 #define OMAP_ABE_DAI_PDM_UL			0
@@ -43,17 +44,27 @@
 #define OMAP_ABE_DAI_DMIC0			7
 #define OMAP_ABE_DAI_DMIC1			8
 #define OMAP_ABE_DAI_DMIC2			9
+#define OMAP_ABE_DAI_VXREC			10
+#define OMAP_ABE_DAI_NUM			11
 
-#define OMAP_ABE_BE_PDM_DL1		"(Backend) PDM-DL1"
-#define OMAP_ABE_BE_PDM_UL1		"(Backend) PDM-UL1"
-#define OMAP_ABE_BE_PDM_DL2		"(Backend) PDM-DL2"
-#define OMAP_ABE_BE_PDM_VIB		"(Backend) PDM-VIB"
-#define OMAP_ABE_BE_BT_VX			"(Backend) BT-VX"
-#define OMAP_ABE_BE_MM_EXT0		"(Backend) FM-EXT"
-#define OMAP_ABE_BE_MM_EXT1		"(Backend) MODEM-EXT"
-#define OMAP_ABE_BE_DMIC0		"(Backend) DMIC0"
-#define OMAP_ABE_BE_DMIC1		"(Backend) DMIC1"
-#define OMAP_ABE_BE_DMIC2		"(Backend) DMIC2"
+#define OMAP_ABE_BE_PDM_DL1		"PDM-DL1"
+#define OMAP_ABE_BE_PDM_UL1		"PDM-UL1"
+#define OMAP_ABE_BE_PDM_DL2		"PDM-DL2"
+#define OMAP_ABE_BE_PDM_VIB		"PDM-VIB"
+#define OMAP_ABE_BE_BT_VX_UL		"BT-VX-UL"
+#define OMAP_ABE_BE_BT_VX_DL		"BT-VX-DL"
+#define OMAP_ABE_BE_MM_EXT0		"FM-EXT"
+#define OMAP_ABE_BE_MM_EXT1		"MODEM-EXT"
+#define OMAP_ABE_BE_DMIC0		"DMIC0"
+#define OMAP_ABE_BE_DMIC1		"DMIC1"
+#define OMAP_ABE_BE_DMIC2		"DMIC2"
+#define OMAP_ABE_BE_VXREC		"VXREC"
 
+#define OMAP_ABE_DL1_NO_PDM		0
+#define OMAP_ABE_DL1_HEADSET_LP		1
+#define OMAP_ABE_DL1_HEADSET_HP		2
+#define OMAP_ABE_DL1_EARPIECE		3
+
+int omap_abe_set_dl1_output(int output);
 
 #endif	/* End of __OMAP_MCPDM_H__ */

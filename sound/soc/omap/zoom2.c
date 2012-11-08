@@ -24,7 +24,6 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 
 #include <asm/mach-types.h>
 #include <mach/hardware.h>
@@ -162,35 +161,36 @@ static const struct snd_soc_dapm_route audio_map[] = {
 static int zoom2_twl4030_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_dapm_context *dapm = &codec->dapm;
 	int ret;
 
 	/* Add Zoom2 specific widgets */
-	ret = snd_soc_dapm_new_controls(codec->dapm, zoom2_twl4030_dapm_widgets,
+	ret = snd_soc_dapm_new_controls(dapm, zoom2_twl4030_dapm_widgets,
 				ARRAY_SIZE(zoom2_twl4030_dapm_widgets));
 	if (ret)
 		return ret;
 
 	/* Set up Zoom2 specific audio path audio_map */
-	snd_soc_dapm_add_routes(codec->dapm, audio_map, ARRAY_SIZE(audio_map));
+	snd_soc_dapm_add_routes(dapm, audio_map, ARRAY_SIZE(audio_map));
 
 	/* Zoom2 connected pins */
-	snd_soc_dapm_enable_pin(codec->dapm, "Ext Mic");
-	snd_soc_dapm_enable_pin(codec->dapm, "Ext Spk");
-	snd_soc_dapm_enable_pin(codec->dapm, "Headset Mic");
-	snd_soc_dapm_enable_pin(codec->dapm, "Headset Stereophone");
-	snd_soc_dapm_enable_pin(codec->dapm, "Aux In");
+	snd_soc_dapm_enable_pin(dapm, "Ext Mic");
+	snd_soc_dapm_enable_pin(dapm, "Ext Spk");
+	snd_soc_dapm_enable_pin(dapm, "Headset Mic");
+	snd_soc_dapm_enable_pin(dapm, "Headset Stereophone");
+	snd_soc_dapm_enable_pin(dapm, "Aux In");
 
 	/* TWL4030 not connected pins */
-	snd_soc_dapm_nc_pin(codec->dapm, "CARKITMIC");
-	snd_soc_dapm_nc_pin(codec->dapm, "DIGIMIC0");
-	snd_soc_dapm_nc_pin(codec->dapm, "DIGIMIC1");
-	snd_soc_dapm_nc_pin(codec->dapm, "EARPIECE");
-	snd_soc_dapm_nc_pin(codec->dapm, "PREDRIVEL");
-	snd_soc_dapm_nc_pin(codec->dapm, "PREDRIVER");
-	snd_soc_dapm_nc_pin(codec->dapm, "CARKITL");
-	snd_soc_dapm_nc_pin(codec->dapm, "CARKITR");
+	snd_soc_dapm_nc_pin(dapm, "CARKITMIC");
+	snd_soc_dapm_nc_pin(dapm, "DIGIMIC0");
+	snd_soc_dapm_nc_pin(dapm, "DIGIMIC1");
+	snd_soc_dapm_nc_pin(dapm, "EARPIECE");
+	snd_soc_dapm_nc_pin(dapm, "PREDRIVEL");
+	snd_soc_dapm_nc_pin(dapm, "PREDRIVER");
+	snd_soc_dapm_nc_pin(dapm, "CARKITL");
+	snd_soc_dapm_nc_pin(dapm, "CARKITR");
 
-	ret = snd_soc_dapm_sync(codec->dapm);
+	ret = snd_soc_dapm_sync(dapm);
 
 	return ret;
 }
@@ -235,7 +235,6 @@ static struct snd_soc_dai_link zoom2_dai[] = {
 /* Audio machine driver */
 static struct snd_soc_card snd_soc_zoom2 = {
 	.name = "Zoom2",
-	.long_name = "Zoom2 (twl4030)",
 	.dai_link = zoom2_dai,
 	.num_links = ARRAY_SIZE(zoom2_dai),
 };
@@ -246,10 +245,8 @@ static int __init zoom2_soc_init(void)
 {
 	int ret;
 
-	if (!machine_is_omap_zoom2() && !machine_is_omap_zoom3()) {
-		pr_debug("Not Zoom2/3!\n");
+	if (!machine_is_omap_zoom2())
 		return -ENODEV;
-	}
 	printk(KERN_INFO "Zoom2 SoC init\n");
 
 	zoom2_snd_device = platform_device_alloc("soc-audio", -1);

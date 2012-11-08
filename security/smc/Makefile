@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2006-2010 Trusted Logic S.A.
+# Copyright (c) 2011 Trusted Logic S.A.
 # All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or
@@ -22,17 +22,34 @@ ifdef S_VERSION_BUILD
 EXTRA_CFLAGS += -DS_VERSION_BUILD=$(S_VERSION_BUILD)
 endif
 
-tf_driver-objs += scxlnx_util.o
-tf_driver-objs += scxlnx_conn.o
-tf_driver-objs += scxlnx_device.o
-tf_driver-objs += scxlnx_comm.o
-tf_driver-objs += scx_public_crypto.o
-tf_driver-objs += scx_public_crypto_Digest.o
-tf_driver-objs += scx_public_crypto_AES.o
-tf_driver-objs += scx_public_crypto_DES.o
-tf_driver-objs += scx_public_dma.o
-tf_driver-objs += scxlnx_comm_mshield.o
-tf_driver-objs += scxlnx_device_mshield.o
+EXTRA_CFLAGS += -Iarch/arm/mach-omap2
+EXTRA_CFLAGS += -Iarch/arm/plat-omap/include/plat
+EXTRA_CFLAGS += -DCONFIG_TF_TEEC
+ifeq ($(CONFIG_ION),y)
+EXTRA_CFLAGS += -DCONFIG_TF_ION
+endif
+
+tf_driver-objs += tf_util.o
+tf_driver-objs += tf_conn.o
+tf_driver-objs += tf_device.o
+tf_driver-objs += tf_comm.o
+tf_driver-objs += tf_crypto.o
+tf_driver-objs += tf_crypto_digest.o
+tf_driver-objs += tf_crypto_aes.o
+tf_driver-objs += tf_crypto_des.o
+tf_driver-objs += tf_dma.o
+tf_driver-objs += tf_comm_mshield.o
+tf_driver-objs += tf_device_mshield.o
 tf_driver-objs += bridge_pub2sec.o
+tf_driver-objs += tf_teec.o
+
+ifeq ($(CONFIG_TF_DRIVER_CRYPTO_FIPS),y)
+tf_driver-objs += tf_crypto_hmac.o
+tf_driver-objs += tf_self_test_device.o
+tf_driver-objs += tf_self_test_post.o
+endif
 
 obj-$(CONFIG_SECURITY_MIDDLEWARE_COMPONENT) += tf_driver.o
+obj-$(CONFIG_SECURITY_MIDDLEWARE_COMPONENT) += rproc_drm.o
+
+obj-$(CONFIG_TF_CRYPTO_RNG) += tf_crypto_rng.o

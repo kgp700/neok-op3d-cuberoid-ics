@@ -166,6 +166,13 @@
 #define MUX_STOPPED_FULL(x,n) (MUX_ALL_STOPPED(x) || MUX_STOPPED(x,n))
 #define MUX_USABLE(x,n) (MUX_CONNECTED(x,n) && !MUX_STOPPED_FULL(x,n))
 
+#ifdef RIL_RECOVERY_MODE
+#define GPIO_IN         0
+#define GPIO_OUT        1
+#define GPIO_LOW        0
+#define GPIO_HIGH       1
+#endif /* RIL_RECOVERY_MODE */
+
 static void fcs_init(void);
 
 static void send_sabm(ts0710_con * ts0710, __u8 dlci);

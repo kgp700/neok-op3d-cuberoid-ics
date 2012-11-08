@@ -18,7 +18,7 @@
  * Organization and refresh requirements for LPDDR2 devices of different
  * types and densities. Derived from JESD209-2 section 2.4
  */
-const struct lpddr2_addressing addressing_table[] = {
+const struct lpddr2_addressing lpddr2_jedec_addressing_table[] = {
 	/* Banks tREFIx10     rowx32,rowx16	 colx32,colx16	    density */
 	{BANKS4, T_REFI_15_6, {ROW_12, ROW_12}, {COL_7, COL_8} },   /*64M*/
 	{BANKS4, T_REFI_15_6, {ROW_12, ROW_12}, {COL_8, COL_9} },   /*128M*/
@@ -38,7 +38,7 @@ const struct lpddr2_addressing addressing_table[] = {
  * Some devices may have better timings. Using these timings is safe when the
  * timings are not available from the device data sheet.
  */
-const struct lpddr2_timings timings_jdec_400_mhz = {
+const struct lpddr2_timings lpddr2_jedec_timings_400_mhz = {
 	.max_freq	= 400000000,
 	.RL		= 6,
 	.tRPab		= 21,
@@ -62,7 +62,7 @@ const struct lpddr2_timings timings_jdec_400_mhz = {
 };
 
 /* Base AC Timing values specified by JESD209-2 for 333 MHz operation */
-const struct lpddr2_timings timings_jdec_333_mhz = {
+const struct lpddr2_timings lpddr2_jedec_timings_333_mhz = {
 	.max_freq	= 333000000,
 	.RL		= 5,
 	.tRPab		= 21,
@@ -86,7 +86,7 @@ const struct lpddr2_timings timings_jdec_333_mhz = {
 };
 
 /* Base AC Timing values specified by JESD209-2 for 200 MHz operation */
-const struct lpddr2_timings timings_jdec_200_mhz = {
+const struct lpddr2_timings lpddr2_jedec_timings_200_mhz = {
 	.max_freq	= 200000000,
 	.RL		= 3,
 	.tRPab		= 21,
@@ -116,7 +116,7 @@ const struct lpddr2_timings timings_jdec_200_mhz = {
  * absolute time value is less than the min tCK value, min tCK value should
  * be used instead. This typically happens at low frequencies.
  */
-const struct lpddr2_min_tck min_tck_jdec = {
+const struct lpddr2_min_tck lpddr2_jedec_min_tck = {
 	.tRL		= 3,
 	.tRP_AB		= 3,
 	.tRCD		= 3,

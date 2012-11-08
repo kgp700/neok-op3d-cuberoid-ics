@@ -22,146 +22,67 @@
 #include <linux/slab.h>
 #include <linux/io.h>
 
-#include <plat/control.h>
-#include <plat/omap_hwmod.h>
 #include <plat/omap_device.h>
-#include <plat/opp.h>
-#include <plat/smartreflex.h>
-#include <plat/voltage.h>
 
-static int sr_idle_hwmod(struct omap_device *od)
-{
-	struct omap_hwmod *oh = *od->hwmods;
+#include "smartreflex.h"
+#include "voltage.h"
+#include "control.h"
+#include "pm.h"
 
-	if (irqs_disabled())
-		_omap_hwmod_idle(oh);
-	else
-		omap_device_idle_hwmods(od);
-	return 0;
-}
-
-static int sr_enable_hwmod(struct omap_device *od)
-{
-	struct omap_hwmod *oh = *od->hwmods;
-
-	if (irqs_disabled())
-		_omap_hwmod_enable(oh);
-	else
-		omap_device_enable_hwmods(od);
-	return 0;
-}
+static bool sr_enable_on_init;
 
 static struct omap_device_pm_latency omap_sr_latency[] = {
 	{
-		.deactivate_func = sr_idle_hwmod,
-		.activate_func	 = sr_enable_hwmod,
+		.deactivate_func = omap_device_idle_hwmods,
+		.activate_func	 = omap_device_enable_hwmods,
 		.flags = OMAP_DEVICE_LATENCY_AUTO_ADJUST
 	},
 };
 
 /* Read EFUSE values from control registers for OMAP3430 */
-static void __init sr_read_efuse(struct omap_sr_dev_data *dev_data,
+static void __init sr_set_nvalues(struct omap_volt_data *volt_data,
 				struct omap_sr_data *sr_data)
 {
-	int i;
-	void __iomem *ctrl_base;
+	struct omap_sr_nvalue_table *nvalue_table;
+	int i, count = 0;
 
-	if (!dev_data) {
-		pr_warning(" Bad parameters! dev_data NULL!\n");
-		return;
-	}
+	while (volt_data[count].volt_nominal)
+		count++;
 
-	if (!dev_data->volts_supported || !dev_data->volt_data ||
-			!dev_data->efuse_nvalues_offs) {
-		pr_warning("%s: Bad parameters! dev_data = %x,"
-			"dev_data->volts_supported = %x,"
-			"dev_data->volt_data = %x,"
-			"dev_data->efuse_nvalues_offs = %x\n", __func__,
-			(unsigned int)dev_data, dev_data->volts_supported,
-			(unsigned int)dev_data->volt_data,
-			(unsigned int)dev_data->efuse_nvalues_offs);
-		return;
-	}
+	nvalue_table = kzalloc(sizeof(struct omap_sr_nvalue_table)*count,
+			GFP_KERNEL);
 
-	/*
-	 * From OMAP3630 onwards there are no efuse registers for senn_mod
-	 * and senp_mod. They have to be 0x1 by default.
-	 */
-	if (!dev_data->efuse_sr_control) {
-		sr_data->senn_mod = 0x1;
-		sr_data->senp_mod = 0x1;
-	} else {
-		sr_data->senn_mod =
-				((omap_ctrl_readl(dev_data->efuse_sr_control) &
-				(0x3 << dev_data->sennenable_shift)) >>
-				dev_data->sennenable_shift);
-		sr_data->senp_mod =
-				((omap_ctrl_readl(dev_data->efuse_sr_control) &
-				(0x3 << dev_data->senpenable_shift)) >>
-				dev_data->senpenable_shift);
-	}
-
-	if (cpu_is_omap44xx())
-		ctrl_base =  ioremap(0x4A002000, SZ_1K);
-
-	for (i = 0; i < dev_data->volts_supported; i++) {
+	for (i = 0; i < count; i++) {
+		u32 v;
+		/*
+		 * In OMAP4 the efuse registers are 24 bit aligned.
+		 * A __raw_readl will fail for non-32 bit aligned address
+		 * and hence the 8-bit read and shift.
+		 */
 		if (cpu_is_omap44xx()) {
-			u16 offset = dev_data->efuse_nvalues_offs[i];
+			u16 offset = volt_data[i].sr_efuse_offs;
 
-			dev_data->volt_data[i].sr_nvalue =
-				__raw_readb(ctrl_base + offset) |
-				__raw_readb(ctrl_base + offset + 1) << 8 |
-				__raw_readb(ctrl_base + offset + 2) << 16;
+			v = omap_ctrl_readb(offset) |
+				omap_ctrl_readb(offset + 1) << 8 |
+				omap_ctrl_readb(offset + 2) << 16;
 		} else {
-			dev_data->volt_data[i].sr_nvalue = omap_ctrl_readl(
-				dev_data->efuse_nvalues_offs[i]);
+			 v = omap_ctrl_readl(volt_data[i].sr_efuse_offs);
 		}
-	}
-	if (cpu_is_omap44xx())
-		iounmap(ctrl_base);
-}
 
-/*
- * Hard coded nvalues for testing purposes for OMAP3430,
- * may cause device to hang!
- */
-static void __init sr_set_testing_nvalues(struct omap_sr_dev_data *dev_data,
-				struct omap_sr_data *sr_data)
-{
-	int i;
-
-	if (!dev_data || !dev_data->volts_supported ||
-			!dev_data->volt_data || !dev_data->test_nvalues) {
-		pr_warning("%s: Bad parameters! dev_data = %x,"
-			"dev_data->volts_supported = %x,"
-			"dev_data->volt_data = %x,"
-			"dev_data->test_nvalues = %x\n", __func__,
-			(unsigned int)dev_data, dev_data->volts_supported,
-			(unsigned int)dev_data->volt_data,
-			(unsigned int)dev_data->test_nvalues);
-		return;
+		nvalue_table[i].efuse_offs = volt_data[i].sr_efuse_offs;
+		nvalue_table[i].nvalue = v;
 	}
 
-	sr_data->senn_mod = dev_data->test_sennenable;
-	sr_data->senp_mod = dev_data->test_senpenable;
-	for (i = 0; i < dev_data->volts_supported; i++)
-		dev_data->volt_data[i].sr_nvalue = dev_data->test_nvalues[i];
-}
-
-static void __init sr_set_nvalues(struct omap_sr_dev_data *dev_data,
-				struct omap_sr_data *sr_data)
-{
-	if (SR_TESTING_NVALUES)
-		sr_set_testing_nvalues(dev_data, sr_data);
-	else
-		sr_read_efuse(dev_data, sr_data);
+	sr_data->nvalue_table = nvalue_table;
+	sr_data->nvalue_count = count;
 }
 
 static int sr_dev_init(struct omap_hwmod *oh, void *user)
 {
 	struct omap_sr_data *sr_data;
-	struct omap_sr_dev_data *sr_dev_data;
 	struct omap_device *od;
+	struct omap_volt_data *volt_data;
+	struct omap_smartreflex_dev_attr *sr_dev_attr;
 	char *name = "smartreflex";
 	static int i;
 
@@ -172,62 +93,58 @@ static int sr_dev_init(struct omap_hwmod *oh, void *user)
 		return -ENOMEM;
 	}
 
-	sr_dev_data = (struct omap_sr_dev_data *)oh->dev_attr;
-	if (unlikely(!sr_dev_data)) {
-		pr_err("%s: dev atrribute is NULL\n", __func__);
-		kfree(sr_data);
+	sr_dev_attr = (struct omap_smartreflex_dev_attr *)oh->dev_attr;
+	if (!sr_dev_attr || !sr_dev_attr->sensor_voltdm_name) {
+		pr_err("%s: No voltage domain specified for %s."
+				"Cannot initialize\n", __func__,
+					oh->name);
 		goto exit;
 	}
 
-	/*
-	 * OMAP3430 ES3.1 chips by default come with Efuse burnt
-	 * with parameters required for full functionality of
-	 * smartreflex AVS feature like ntarget values , sennenable
-	 * and senpenable. So enable the SR AVS feature during boot up
-	 * itself if it is a OMAP3430 ES3.1 chip.
-	 */
-	if (cpu_is_omap343x()) {
-		if (omap_rev() == OMAP3430_REV_ES3_1)
-			sr_data->enable_on_init = true;
-		else
-			sr_data->enable_on_init = false;
-	} else {
-		sr_data->enable_on_init = false;
-	}
-	sr_data->device_enable = omap_device_enable;
-	sr_data->device_shutdown = omap_device_shutdown;
-	sr_data->device_idle = omap_device_idle;
-	sr_data->voltdm = omap_voltage_domain_get(sr_dev_data->vdd_name);
+	sr_data->ip_type = oh->class->rev;
+	sr_data->senn_mod = 0x1;
+	sr_data->senp_mod = 0x1;
+
+	sr_data->voltdm = voltdm_lookup(sr_dev_attr->sensor_voltdm_name);
 	if (IS_ERR(sr_data->voltdm)) {
 		pr_err("%s: Unable to get voltage domain pointer for VDD %s\n",
-			__func__, sr_dev_data->vdd_name);
-		kfree(sr_data);
+			__func__, sr_dev_attr->sensor_voltdm_name);
 		goto exit;
 	}
-	sr_dev_data->volts_supported = omap_voltage_get_volttable(
-			sr_data->voltdm, &sr_dev_data->volt_data);
-	if (!sr_dev_data->volts_supported) {
+
+	omap_voltage_get_volttable(sr_data->voltdm, &volt_data);
+	if (!volt_data) {
 		pr_warning("%s: No Voltage table registerd fo VDD%d."
 			"Something really wrong\n\n", __func__, i + 1);
-		kfree(sr_data);
 		goto exit;
 	}
-	sr_set_nvalues(sr_dev_data, sr_data);
+
+	sr_set_nvalues(volt_data, sr_data);
+
+	sr_data->enable_on_init = sr_enable_on_init;
+
 	od = omap_device_build(name, i, oh, sr_data, sizeof(*sr_data),
 			       omap_sr_latency,
 			       ARRAY_SIZE(omap_sr_latency), 0);
-	if (IS_ERR(od)) {
+	if (IS_ERR(od))
 		pr_warning("%s: Could not build omap_device for %s: %s.\n\n",
 			__func__, name, oh->name);
-		kfree(sr_data);
-	}
 exit:
 	i++;
+	kfree(sr_data);
 	return 0;
 }
 
-static int __init omap_devinit_smartreflex(void)
+/*
+ * API to be called from board files to enable smartreflex
+ * autocompensation at init.
+ */
+void __init omap_enable_smartreflex_on_init(void)
+{
+	sr_enable_on_init = true;
+}
+
+int __init omap_devinit_smartreflex(void)
 {
 	return omap_hwmod_for_each_by_class("smartreflex", sr_dev_init, NULL);
 }
-device_initcall(omap_devinit_smartreflex);

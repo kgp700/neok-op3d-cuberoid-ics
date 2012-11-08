@@ -31,7 +31,6 @@
 #define MPUIRQ_SET_TIMEOUT           (5)
 #define MPUIRQ_SET_ACCEL_INFO        (6)
 #define MPUIRQ_SET_FREQUENCY_DIVIDER (7)
-#define MPUIRQ_SET_WAKE_UP           (8)
 
 #ifdef __KERNEL__
 

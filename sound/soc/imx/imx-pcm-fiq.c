@@ -240,15 +240,10 @@ static int ssi_irq = 0;
 
 static int imx_pcm_fiq_new(struct snd_soc_pcm_runtime *rtd)
 {
+	struct snd_card *card = rtd->card->snd_card;
+	struct snd_soc_dai *dai = rtd->cpu_dai;
 	struct snd_pcm *pcm = rtd->pcm;
-	struct imx_ssi *ssi = snd_soc_dai_get_drvdata(rtd->cpu_dai);
 	int ret;
-
-	ret = claim_fiq(&fh);
-	if (ret) {
-		dev_err(dai->dev, "failed to claim fiq: %d", ret);
-		return ret;
-	}
 
 	ret = imx_pcm_new(rtd);
 	if (ret)
@@ -269,17 +264,6 @@ static int imx_pcm_fiq_new(struct snd_soc_pcm_runtime *rtd)
 
 		imx_ssi_fiq_rx_buffer = (unsigned long)buf->area;
 	}
-
-	mxc_set_irq_fiq(ssi->irq, 1);
-	ssi_irq = ssi->irq;
-
-	imx_pcm_fiq = ssi->irq;
-
-	imx_ssi_fiq_base = (unsigned long)ssi->base;
-
-	ssi->dma_params_tx.burstsize = 4;
-	ssi->dma_params_rx.burstsize = 6;
-
 
 	set_fiq_handler(&imx_ssi_fiq_start,
 		&imx_ssi_fiq_end - &imx_ssi_fiq_start);
@@ -302,7 +286,36 @@ static struct snd_soc_platform_driver imx_soc_platform_fiq = {
 
 static int __devinit imx_soc_platform_probe(struct platform_device *pdev)
 {
-	return snd_soc_register_platform(&pdev->dev, &imx_soc_platform_fiq);
+	struct imx_ssi *ssi = platform_get_drvdata(pdev);
+	int ret;
+
+	ret = claim_fiq(&fh);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to claim fiq: %d", ret);
+		return ret;
+	}
+
+	mxc_set_irq_fiq(ssi->irq, 1);
+	ssi_irq = ssi->irq;
+
+	imx_pcm_fiq = ssi->irq;
+
+	imx_ssi_fiq_base = (unsigned long)ssi->base;
+
+	ssi->dma_params_tx.burstsize = 4;
+	ssi->dma_params_rx.burstsize = 6;
+
+	ret = snd_soc_register_platform(&pdev->dev, &imx_soc_platform_fiq);
+	if (ret)
+		goto failed_register;
+
+	return 0;
+
+failed_register:
+	mxc_set_irq_fiq(ssi_irq, 0);
+	release_fiq(&fh);
+
+	return ret;
 }
 
 static int __devexit imx_soc_platform_remove(struct platform_device *pdev)

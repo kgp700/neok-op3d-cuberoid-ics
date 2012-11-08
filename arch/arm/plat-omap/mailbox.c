@@ -21,21 +21,27 @@
  *
  */
 
-#include <linux/module.h>
 #include <linux/interrupt.h>
-#include <linux/device.h>
+#include <linux/spinlock.h>
+#include <linux/mutex.h>
 #include <linux/delay.h>
 #include <linux/slab.h>
 #include <linux/kfifo.h>
+#include <linux/err.h>
 #include <linux/notifier.h>
+#include <linux/pm_qos_params.h>
 
 #include <plat/mailbox.h>
 
-static struct workqueue_struct *mboxd;
-static struct omap_mbox *mboxes;
-static DEFINE_MUTEX(mboxes_lock);
+static struct omap_mbox **mboxes;
 
 static int mbox_configured;
+static DEFINE_MUTEX(mbox_configured_lock);
+struct pm_qos_request_list mbox_qos_request;
+
+static unsigned int mbox_kfifo_size = CONFIG_OMAP_MBOX_KFIFO_SIZE;
+module_param(mbox_kfifo_size, uint, S_IRUGO);
+MODULE_PARM_DESC(mbox_kfifo_size, "Size of omap's mailbox kfifo (bytes)");
 
 /* Mailbox FIFO handle functions */
 static inline mbox_msg_t mbox_fifo_read(struct omap_mbox *mbox)
@@ -74,14 +80,14 @@ static int __mbox_poll_for_space(struct omap_mbox *mbox)
 	int ret = 0, i = 1000;
 
 	while (mbox_fifo_full(mbox)) {
+		if (mbox->ops->type == OMAP_MBOX_TYPE2)
+			return -1;
 		if (--i == 0)
 			return -1;
 		udelay(1);
-		printk(KERN_ERR "Mailbox FIFO full %d\n", i);
 	}
 	return ret;
 }
-
 
 int omap_mbox_msg_send(struct omap_mbox *mbox, mbox_msg_t msg)
 {
@@ -89,16 +95,19 @@ int omap_mbox_msg_send(struct omap_mbox *mbox, mbox_msg_t msg)
 	int ret = 0, len;
 
 	spin_lock_bh(&mq->lock);
+
 	if (kfifo_avail(&mq->fifo) < sizeof(msg)) {
 		ret = -ENOMEM;
 		goto out;
 	}
 
-	len = kfifo_in(&mq->fifo, (unsigned char *)&msg, sizeof(msg));
-	if (unlikely(len != sizeof(msg))) {
-		pr_err("%s: kfifo_in anomaly\n", __func__);
-		ret = -ENOMEM;
+	if (kfifo_is_empty(&mq->fifo) && !__mbox_poll_for_space(mbox)) {
+		mbox_fifo_write(mbox, msg);
+		goto out;
 	}
+
+	len = kfifo_in(&mq->fifo, (unsigned char *)&msg, sizeof(msg));
+	WARN_ON(len != sizeof(msg));
 
 	tasklet_schedule(&mbox->txq->tasklet);
 
@@ -115,7 +124,6 @@ static void mbox_tx_tasklet(unsigned long tx_data)
 	mbox_msg_t msg;
 	int ret;
 
-	spin_lock(&mq->lock);
 	while (kfifo_len(&mq->fifo)) {
 		if (__mbox_poll_for_space(mbox)) {
 			omap_mbox_enable_irq(mbox, IRQ_TX);
@@ -124,14 +132,10 @@ static void mbox_tx_tasklet(unsigned long tx_data)
 
 		ret = kfifo_out(&mq->fifo, (unsigned char *)&msg,
 								sizeof(msg));
-		if (unlikely(ret != sizeof(msg)))
-			pr_err("%s: kfifo_out anomaly\n", __func__);
+		WARN_ON(ret != sizeof(msg));
 
 		mbox_fifo_write(mbox, msg);
-
-
 	}
-	spin_unlock(&mq->lock);
 }
 
 /*
@@ -146,11 +150,10 @@ static void mbox_rx_work(struct work_struct *work)
 
 	while (kfifo_len(&mq->fifo) >= sizeof(msg)) {
 		len = kfifo_out(&mq->fifo, (unsigned char *)&msg, sizeof(msg));
-		if (unlikely(len != sizeof(msg)))
-			pr_err("%s: kfifo_out anomaly detected\n", __func__);
+		WARN_ON(len != sizeof(msg));
 
 		blocking_notifier_call_chain(&mq->mbox->notifier, len,
-							(void *)msg);
+								(void *)msg);
 		spin_lock_irq(&mq->lock);
 		if (mq->full) {
 			mq->full = false;
@@ -165,61 +168,37 @@ static void mbox_rx_work(struct work_struct *work)
  */
 static void __mbox_tx_interrupt(struct omap_mbox *mbox)
 {
-	struct omap_mbox **tmp;
-	struct omap_mbox *mbox_curr;
-
-	tmp = &mboxes;
-	while (*tmp) {
-		mbox_curr = *tmp;
-		if (!mbox_fifo_full(mbox_curr)) {
-			omap_mbox_disable_irq(mbox_curr, IRQ_TX);
-			ack_mbox_irq(mbox_curr, IRQ_TX);
-			tasklet_schedule(&mbox_curr->txq->tasklet);
-		}
-		tmp = &(*tmp)->next;
-	}
+	omap_mbox_disable_irq(mbox, IRQ_TX);
+	ack_mbox_irq(mbox, IRQ_TX);
+	tasklet_schedule(&mbox->txq->tasklet);
 }
 
 static void __mbox_rx_interrupt(struct omap_mbox *mbox)
 {
-	struct omap_mbox_queue *mq;
+	struct omap_mbox_queue *mq = mbox->rxq;
 	mbox_msg_t msg;
 	int len;
-	struct omap_mbox **tmp;
-	struct omap_mbox *mbox_curr;
-	bool msg_rx;
 
-	tmp = &mboxes;
-	while (*tmp) {
-		mbox_curr = *tmp;
-		mq = mbox_curr->rxq;
-		msg_rx = false;
-		while (!mbox_fifo_empty(mbox_curr)) {
-			msg_rx = true;
-			if (unlikely(kfifo_avail(&mq->fifo) < sizeof(msg))) {
-				omap_mbox_disable_irq(mbox_curr, IRQ_RX);
-				mq->full = true;
-				goto nomem;
-			}
-
-			msg = mbox_fifo_read(mbox_curr);
-
-			len = kfifo_in(&mq->fifo, (unsigned char *)&msg,
-								sizeof(msg));
-			if (unlikely(len != sizeof(msg)))
-				pr_err("%s: kfifo_in anomaly detected\n",
-								__func__);
-			if (mbox->ops->type == OMAP_MBOX_TYPE1)
-				break;
+	while (!mbox_fifo_empty(mbox)) {
+		if (unlikely(kfifo_avail(&mq->fifo) < sizeof(msg))) {
+			omap_mbox_disable_irq(mbox, IRQ_RX);
+			mq->full = true;
+			goto nomem;
 		}
-		/* no more messages in the fifo. clear IRQ source. */
-		if (msg_rx)
-			ack_mbox_irq(mbox_curr, IRQ_RX);
-nomem:
-		queue_work(mboxd, &mbox->rxq->work);
 
-		tmp = &(*tmp)->next;
+		msg = mbox_fifo_read(mbox);
+
+		len = kfifo_in(&mq->fifo, (unsigned char *)&msg, sizeof(msg));
+		WARN_ON(len != sizeof(msg));
+
+		if (mbox->ops->type == OMAP_MBOX_TYPE1)
+			break;
 	}
+
+	/* no more messages in the fifo. clear IRQ source. */
+	ack_mbox_irq(mbox, IRQ_RX);
+nomem:
+	schedule_work(&mbox->rxq->work);
 }
 
 static irqreturn_t mbox_interrupt(int irq, void *p)
@@ -247,7 +226,7 @@ static struct omap_mbox_queue *mbox_queue_alloc(struct omap_mbox *mbox,
 
 	spin_lock_init(&mq->lock);
 
-	if (kfifo_alloc(&mq->fifo, MBOX_KFIFO_SIZE, GFP_KERNEL))
+	if (kfifo_alloc(&mq->fifo, mbox_kfifo_size, GFP_KERNEL))
 		goto error;
 
 	if (work)
@@ -272,26 +251,21 @@ static int omap_mbox_startup(struct omap_mbox *mbox)
 	int ret = 0;
 	struct omap_mbox_queue *mq;
 
-	mutex_lock(&mboxes_lock);
+	mutex_lock(&mbox_configured_lock);
 	if (!mbox_configured++) {
+		if (mbox->pm_constraint)
+		pm_qos_update_request(&mbox_qos_request,
+					mbox->pm_constraint);
+
 		if (likely(mbox->ops->startup)) {
 			ret = mbox->ops->startup(mbox);
-			if (unlikely(ret)) {
-				mbox_configured--;
-				mutex_unlock(&mboxes_lock);
-				return ret;
-			}
-		}
+			if (unlikely(ret))
+				goto fail_startup;
+		} else
+			goto fail_startup;
 	}
 
 	if (!mbox->use_count++) {
-		ret = request_irq(mbox->irq, mbox_interrupt, IRQF_SHARED,
-					mbox->name, mbox);
-		if (unlikely(ret)) {
-			printk(KERN_ERR
-			"failed to register mailbox interrupt:%d\n", ret);
-			goto fail_request_irq;
-		}
 		mq = mbox_queue_alloc(mbox, NULL, mbox_tx_tasklet);
 		if (!mq) {
 			ret = -ENOMEM;
@@ -306,71 +280,81 @@ static int omap_mbox_startup(struct omap_mbox *mbox)
 		}
 		mbox->rxq = mq;
 		mq->mbox = mbox;
+		ret = request_irq(mbox->irq, mbox_interrupt, IRQF_SHARED,
+							mbox->name, mbox);
+		if (unlikely(ret)) {
+			pr_err("failed to register mailbox interrupt:%d\n",
+									ret);
+			goto fail_request_irq;
+		} else
+			mbox->ops->enable_irq(mbox, IRQ_RX);
 	}
-	mutex_unlock(&mboxes_lock);
+	mutex_unlock(&mbox_configured_lock);
 	return 0;
 
- fail_alloc_rxq:
+fail_request_irq:
+	mbox_queue_free(mbox->rxq);
+fail_alloc_rxq:
 	mbox_queue_free(mbox->txq);
- fail_alloc_txq:
-	free_irq(mbox->irq, mbox);
- fail_request_irq:
-	if (likely(mbox->ops->shutdown))
+fail_alloc_txq:
+	if (mbox->ops->shutdown)
 		mbox->ops->shutdown(mbox);
-	mbox_configured--;
 	mbox->use_count--;
-	mutex_unlock(&mboxes_lock);
+fail_startup:
+	if (!--mbox_configured)
+		if (mbox->pm_constraint)
+		pm_qos_update_request(&mbox_qos_request,
+					PM_QOS_DEFAULT_VALUE);
+	mutex_unlock(&mbox_configured_lock);
 	return ret;
 }
 
 static void omap_mbox_fini(struct omap_mbox *mbox)
 {
-	mutex_lock(&mboxes_lock);
+	mutex_lock(&mbox_configured_lock);
 
 	if (!--mbox->use_count) {
+		free_irq(mbox->irq, mbox);
+		tasklet_kill(&mbox->txq->tasklet);
+		flush_work_sync(&mbox->rxq->work);
 		mbox_queue_free(mbox->txq);
 		mbox_queue_free(mbox->rxq);
 	}
 
 	if (likely(mbox->ops->shutdown)) {
 		if (!--mbox_configured) {
-			free_irq(mbox->irq, mbox);
 			mbox->ops->shutdown(mbox);
+			if (mbox->pm_constraint)
+			pm_qos_update_request(&mbox_qos_request,
+						PM_QOS_DEFAULT_VALUE);
 		}
 	}
 
-	mutex_unlock(&mboxes_lock);
-}
-
-static struct omap_mbox **find_mboxes(const char *name)
-{
-	struct omap_mbox **p;
-
-	for (p = &mboxes; *p; p = &(*p)->next) {
-		if (strcmp((*p)->name, name) == 0)
-			break;
-	}
-
-	return p;
+	mutex_unlock(&mbox_configured_lock);
 }
 
 struct omap_mbox *omap_mbox_get(const char *name, struct notifier_block *nb)
 {
-	struct omap_mbox *mbox;
-	int ret;
+	struct omap_mbox *_mbox, *mbox = NULL;
+	int i, ret;
 
-	mutex_lock(&mboxes_lock);
-	mbox = *(find_mboxes(name));
-	if (mbox == NULL) {
-		mutex_unlock(&mboxes_lock);
-		return ERR_PTR(-ENOENT);
+	if (!mboxes)
+		return ERR_PTR(-EINVAL);
+
+	for (i = 0; (_mbox = mboxes[i]); i++) {
+		if (!strcmp(_mbox->name, name)) {
+			mbox = _mbox;
+			break;
+		}
 	}
 
-	mutex_unlock(&mboxes_lock);
+	if (!mbox)
+		return ERR_PTR(-ENOENT);
 
 	ret = omap_mbox_startup(mbox);
 	if (ret)
 		return ERR_PTR(-ENODEV);
+
 	if (nb)
 		blocking_notifier_chain_register(&mbox->notifier, nb);
 
@@ -386,68 +370,75 @@ void omap_mbox_put(struct omap_mbox *mbox, struct notifier_block *nb)
 }
 EXPORT_SYMBOL(omap_mbox_put);
 
-int omap_mbox_register(struct device *parent, struct omap_mbox *mbox)
+static struct class omap_mbox_class = { .name = "mbox", };
+
+int omap_mbox_register(struct device *parent, struct omap_mbox **list)
 {
-	int ret = 0;
-	struct omap_mbox **tmp;
+	int ret;
+	int i;
 
-	if (!mbox)
+	mboxes = list;
+	if (!mboxes)
 		return -EINVAL;
-	if (mbox->next)
-		return -EBUSY;
 
-	mutex_lock(&mboxes_lock);
-	tmp = find_mboxes(mbox->name);
-	if (*tmp) {
-		ret = -EBUSY;
-		mutex_unlock(&mboxes_lock);
-		goto err_find;
+	for (i = 0; mboxes[i]; i++) {
+		struct omap_mbox *mbox = mboxes[i];
+		mbox->dev = device_create(&omap_mbox_class,
+				parent, 0, mbox, "%s", mbox->name);
+		if (IS_ERR(mbox->dev)) {
+			ret = PTR_ERR(mbox->dev);
+			goto err_out;
+		}
+
+		BLOCKING_INIT_NOTIFIER_HEAD(&mbox->notifier);
 	}
-	*tmp = mbox;
-	BLOCKING_INIT_NOTIFIER_HEAD(&mbox->notifier);
-	mutex_unlock(&mboxes_lock);
-
 	return 0;
 
-err_find:
+err_out:
+	while (i--)
+		device_unregister(mboxes[i]->dev);
 	return ret;
 }
 EXPORT_SYMBOL(omap_mbox_register);
 
-int omap_mbox_unregister(struct omap_mbox *mbox)
+int omap_mbox_unregister(void)
 {
-	struct omap_mbox **tmp;
+	int i;
 
-	mutex_lock(&mboxes_lock);
-	tmp = &mboxes;
-	while (*tmp) {
-		if (mbox == *tmp) {
-			*tmp = mbox->next;
-			mbox->next = NULL;
-			mutex_unlock(&mboxes_lock);
-			return 0;
-		}
-		tmp = &(*tmp)->next;
-	}
-	mutex_unlock(&mboxes_lock);
+	if (!mboxes)
+		return -EINVAL;
 
-	return -EINVAL;
+	for (i = 0; mboxes[i]; i++)
+		device_unregister(mboxes[i]->dev);
+
+	mboxes = NULL;
+	return 0;
 }
 EXPORT_SYMBOL(omap_mbox_unregister);
 
 static int __init omap_mbox_init(void)
 {
-	mboxd = create_singlethread_workqueue("mboxd");
-	if (!mboxd)
-		return -ENOMEM;
+	int err;
 
+	err = class_register(&omap_mbox_class);
+	if (err)
+		return err;
+
+	/* kfifo size sanity check: alignment and minimal size */
+	mbox_kfifo_size = ALIGN(mbox_kfifo_size, sizeof(mbox_msg_t));
+	mbox_kfifo_size = max_t(unsigned int, mbox_kfifo_size,
+							sizeof(mbox_msg_t));
+
+	pm_qos_add_request(&mbox_qos_request, PM_QOS_CPU_DMA_LATENCY,
+						PM_QOS_DEFAULT_VALUE);
 	return 0;
 }
-module_init(omap_mbox_init);
+subsys_initcall(omap_mbox_init);
 
 static void __exit omap_mbox_exit(void)
 {
-	destroy_workqueue(mboxd);
+	class_unregister(&omap_mbox_class);
+	pm_qos_remove_request(&mbox_qos_request);
 }
 module_exit(omap_mbox_exit);
 

@@ -30,7 +30,6 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 #include <sound/initval.h>
 #include <sound/tlv.h>
 
@@ -140,8 +139,6 @@
 
 struct wm8900_priv {
 	enum snd_soc_control_type control_type;
-	void *control_data;
-	u16 reg_cache[WM8900_MAXREG];
 
 	u32 fll_in; /* FLL input frequency */
 	u32 fll_out; /* FLL output frequency */
@@ -183,11 +180,10 @@ static const u16 wm8900_reg_defaults[WM8900_MAXREG] = {
 	/* Remaining registers all zero */
 };
 
-static int wm8900_volatile_register(unsigned int reg)
+static int wm8900_volatile_register(struct snd_soc_codec *codec, unsigned int reg)
 {
 	switch (reg) {
 	case WM8900_REG_ID:
-	case WM8900_REG_POWER1:
 		return 1;
 	default:
 		return 0;
@@ -613,10 +609,11 @@ static const struct snd_soc_dapm_route audio_map[] = {
 
 static int wm8900_add_widgets(struct snd_soc_codec *codec)
 {
-	snd_soc_dapm_new_controls(codec->dapm, wm8900_dapm_widgets,
-				  ARRAY_SIZE(wm8900_dapm_widgets));
+	struct snd_soc_dapm_context *dapm = &codec->dapm;
 
-	snd_soc_dapm_add_routes(codec->dapm, audio_map, ARRAY_SIZE(audio_map));
+	snd_soc_dapm_new_controls(dapm, wm8900_dapm_widgets,
+				  ARRAY_SIZE(wm8900_dapm_widgets));
+	snd_soc_dapm_add_routes(dapm, audio_map, ARRAY_SIZE(audio_map));
 
 	return 0;
 }
@@ -1053,7 +1050,7 @@ static int wm8900_set_bias_level(struct snd_soc_codec *codec,
 
 	case SND_SOC_BIAS_STANDBY:
 		/* Charge capacitors if initial power up */
-		if (codec->dapm->bias_level == SND_SOC_BIAS_OFF) {
+		if (codec->dapm.bias_level == SND_SOC_BIAS_OFF) {
 			/* STARTUP_BIAS_ENA on */
 			snd_soc_write(codec, WM8900_REG_POWER1,
 				     WM8900_REG_POWER1_STARTUP_BIAS_ENA);
@@ -1121,7 +1118,7 @@ static int wm8900_set_bias_level(struct snd_soc_codec *codec,
 			     WM8900_REG_POWER2_SYSCLK_ENA);
 		break;
 	}
-	codec->dapm->bias_level = level;
+	codec->dapm.bias_level = level;
 	return 0;
 }
 
@@ -1189,7 +1186,6 @@ static int wm8900_probe(struct snd_soc_codec *codec)
 	struct wm8900_priv *wm8900 = snd_soc_codec_get_drvdata(codec);
 	int ret = 0, reg;
 
-	codec->control_data = wm8900->control_data;
 	ret = snd_soc_codec_set_cache_io(codec, 8, 16, wm8900->control_type);
 	if (ret != 0) {
 		dev_err(codec->dev, "Failed to set cache I/O: %d\n", ret);
@@ -1201,11 +1197,6 @@ static int wm8900_probe(struct snd_soc_codec *codec)
 		dev_err(codec->dev, "Device is not a WM8900 - ID %x\n", reg);
 		return -ENODEV;
 	}
-
-	/* Read back from the chip */
-	reg = snd_soc_read(codec, WM8900_REG_POWER1);
-	reg = (reg >> 12) & 0xf;
-	dev_info(codec->dev, "WM8900 revision %d\n", reg);
 
 	wm8900_reset(codec);
 
@@ -1258,7 +1249,7 @@ static struct snd_soc_codec_driver soc_codec_dev_wm8900 = {
 	.resume =	wm8900_resume,
 	.set_bias_level = wm8900_set_bias_level,
 	.volatile_register = wm8900_volatile_register,
-	.reg_cache_size = sizeof(wm8900_reg_defaults),
+	.reg_cache_size = ARRAY_SIZE(wm8900_reg_defaults),
 	.reg_word_size = sizeof(u16),
 	.reg_cache_default = wm8900_reg_defaults,
 };
@@ -1273,7 +1264,6 @@ static int __devinit wm8900_spi_probe(struct spi_device *spi)
 	if (wm8900 == NULL)
 		return -ENOMEM;
 
-	wm8900->control_data = spi;
 	wm8900->control_type = SND_SOC_SPI;
 	spi_set_drvdata(spi, wm8900);
 
@@ -1294,7 +1284,6 @@ static int __devexit wm8900_spi_remove(struct spi_device *spi)
 static struct spi_driver wm8900_spi_driver = {
 	.driver = {
 		.name	= "wm8900-codec",
-		.bus	= &spi_bus_type,
 		.owner	= THIS_MODULE,
 	},
 	.probe		= wm8900_spi_probe,
@@ -1314,7 +1303,6 @@ static __devinit int wm8900_i2c_probe(struct i2c_client *i2c,
 		return -ENOMEM;
 
 	i2c_set_clientdata(i2c, wm8900);
-	wm8900->control_data = i2c;
 	wm8900->control_type = SND_SOC_I2C;
 
 	ret =  snd_soc_register_codec(&i2c->dev,

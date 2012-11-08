@@ -29,7 +29,7 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
-#include <sound/soc-dai.h>
+#include <sound/soc.h>
 
 #include <asm/siu.h>
 
@@ -127,6 +127,7 @@ static int siu_pcm_wr_set(struct siu_port *port_info,
 	sg_init_table(&sg, 1);
 	sg_set_page(&sg, pfn_to_page(PFN_DOWN(buff)),
 		    size, offset_in_page(buff));
+	sg_dma_len(&sg) = size;
 	sg_dma_address(&sg) = buff;
 
 	desc = siu_stream->chan->device->device_prep_slave_sg(siu_stream->chan,
@@ -176,6 +177,7 @@ static int siu_pcm_rd_set(struct siu_port *port_info,
 	sg_init_table(&sg, 1);
 	sg_set_page(&sg, pfn_to_page(PFN_DOWN(buff)),
 		    size, offset_in_page(buff));
+	sg_dma_len(&sg) = size;
 	sg_dma_address(&sg) = buff;
 
 	desc = siu_stream->chan->device->device_prep_slave_sg(siu_stream->chan,
@@ -341,7 +343,7 @@ static int siu_pcm_open(struct snd_pcm_substream *ss)
 {
 	/* Playback / Capture */
 	struct snd_soc_pcm_runtime *rtd = ss->private_data;
-	struct siu_platform *pdata = snd_soc_platform_get_drvdata(rtd->platform);
+	struct siu_platform *pdata = rtd->platform->dev->platform_data;
 	struct siu_info *info = siu_i2s_data;
 	struct siu_port *port_info = siu_port_info(ss);
 	struct siu_stream *siu_stream;
@@ -527,6 +529,7 @@ static snd_pcm_uframes_t siu_pcm_pointer_dma(struct snd_pcm_substream *ss)
 
 static int siu_pcm_new(struct snd_soc_pcm_runtime *rtd)
 {
+	/* card->dev == socdev->dev, see snd_soc_new_pcms() */
 	struct snd_card *card = rtd->card->snd_card;
 	struct snd_pcm *pcm = rtd->pcm;
 	struct siu_info *info = siu_i2s_data;

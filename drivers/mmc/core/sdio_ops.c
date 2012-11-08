@@ -21,12 +21,10 @@
 
 int mmc_send_io_op_cond(struct mmc_host *host, u32 ocr, u32 *rocr)
 {
-	struct mmc_command cmd;
+	struct mmc_command cmd = {0};
 	int i, err = 0;
 
 	BUG_ON(!host);
-
-	memset(&cmd, 0, sizeof(struct mmc_command));
 
 	cmd.opcode = SD_IO_SEND_OP_COND;
 	cmd.arg = ocr;
@@ -60,56 +58,7 @@ int mmc_send_io_op_cond(struct mmc_host *host, u32 ocr, u32 *rocr)
 
 		mmc_delay(10);
 	}
-#if 1      /* JamesLee :: Jun17 */
-// TI Debugging code from Lee,Cliff [cliff.lee@ti.com] - 2011-07-11
-    if(err != 0)
-    {
-        printk("@@@@@@@@%s(index=%d), err = %d\n", __func__, host->index, err);
-        if(host->index==2)
-        {
-            printk("5010=0x%8x, 5110=0x%8x, 5114=0x%8x, 5124=0x%8x, 5128=0x%8x\n",
-                        omap_readl(0x480d5010),
-                        omap_readl(0x480d5110),
-                        omap_readl(0x480d5114),
-                        omap_readl(0x480d5124),
-                        omap_readl(0x480d5128));
 
-            printk("512C=0x%8x, 5130=0x%8x, 5200=0x%8x, 5204=0x%8x, 5208=0x%8x\n",
-                        omap_readl(0x480d512C),
-                        omap_readl(0x480d5130),
-                        omap_readl(0x480d5200),
-                        omap_readl(0x480d5204),
-                        omap_readl(0x480d5208));
-
-            printk("520C=0x%8x, 5210=0x%8x, 5214=0x%8x, 5218=0x%8x, 521C=0x%8x\n",
-                        omap_readl(0x480d520C),
-                        omap_readl(0x480d5210),
-                        omap_readl(0x480d5214),
-                        omap_readl(0x480d5218),
-                        omap_readl(0x480d521C));
-
-            printk("5220=0x%8x, 5224=0x%8x, 5228=0x%8x, 522C=0x%8x, 5230=0x%8x\n",
-                        omap_readl(0x480d5220),
-                        omap_readl(0x480d5224),
-                        omap_readl(0x480d5228),
-                        omap_readl(0x480d522C),
-                        omap_readl(0x480d5230));
-
-            printk("5234=0x%8x, 5238=0x%8x, 523C=0x%8x, 5240=0x%8x, 5248=0x%8x\n",
-                        omap_readl(0x480d5234),
-                        omap_readl(0x480d5238),
-                        omap_readl(0x480d523C),
-                        omap_readl(0x480d5240),
-                        omap_readl(0x480d5248));
-
-            printk("5250=0x%8x, 52FC=0x%8x\n",
-                        omap_readl(0x480d5250),
-                        omap_readl(0x480d52FC));
-
-            printk("MMCSD5_CLKCTRL=0x%x\n", omap_readl(0x4a009560));
-        }
-    }
-#endif
 	if (rocr)
 		*rocr = cmd.resp[mmc_host_is_spi(host) ? 1 : 0];
 
@@ -119,7 +68,7 @@ int mmc_send_io_op_cond(struct mmc_host *host, u32 ocr, u32 *rocr)
 static int mmc_io_rw_direct_host(struct mmc_host *host, int write, unsigned fn,
 	unsigned addr, u8 in, u8 *out)
 {
-	struct mmc_command cmd;
+	struct mmc_command cmd = {0};
 	int err;
 
 	BUG_ON(!host);
@@ -128,8 +77,6 @@ static int mmc_io_rw_direct_host(struct mmc_host *host, int write, unsigned fn,
 	/* sanity check */
 	if (addr & ~0x1FFFF)
 		return -EINVAL;
-
-	memset(&cmd, 0, sizeof(struct mmc_command));
 
 	cmd.opcode = SD_IO_RW_DIRECT;
 	cmd.arg = write ? 0x80000000 : 0x00000000;
@@ -174,9 +121,9 @@ int mmc_io_rw_direct(struct mmc_card *card, int write, unsigned fn,
 int mmc_io_rw_extended(struct mmc_card *card, int write, unsigned fn,
 	unsigned addr, int incr_addr, u8 *buf, unsigned blocks, unsigned blksz)
 {
-	struct mmc_request mrq;
-	struct mmc_command cmd;
-	struct mmc_data data;
+	struct mmc_request mrq = {0};
+	struct mmc_command cmd = {0};
+	struct mmc_data data = {0};
 	struct scatterlist sg;
 
 	BUG_ON(!card);
@@ -188,10 +135,6 @@ int mmc_io_rw_extended(struct mmc_card *card, int write, unsigned fn,
 	/* sanity check */
 	if (addr & ~0x1FFFF)
 		return -EINVAL;
-
-	memset(&mrq, 0, sizeof(struct mmc_request));
-	memset(&cmd, 0, sizeof(struct mmc_command));
-	memset(&data, 0, sizeof(struct mmc_data));
 
 	mrq.cmd = &cmd;
 	mrq.data = &data;

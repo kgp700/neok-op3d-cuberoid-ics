@@ -24,7 +24,6 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 
 #include <asm/mach-types.h>
 #include <mach/hardware.h>
@@ -101,10 +100,8 @@ static int __init igep2_soc_init(void)
 {
 	int ret;
 
-	if (!machine_is_igep0020()) {
-		pr_debug("Not IGEP v2!\n");
+	if (!machine_is_igep0020())
 		return -ENODEV;
-	}
 	printk(KERN_INFO "IGEP v2 SoC init\n");
 
 	igep2_snd_device = platform_device_alloc("soc-audio", -1);

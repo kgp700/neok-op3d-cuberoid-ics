@@ -23,7 +23,6 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 #include <sound/initval.h>
 #include <sound/tlv.h>
 
@@ -45,7 +44,6 @@ static const u16 wm8728_reg_defaults[] = {
 /* codec private data */
 struct wm8728_priv {
 	enum snd_soc_control_type control_type;
-	void *control_data;
 };
 
 static const DECLARE_TLV_DB_SCALE(wm8728_tlv, -12750, 50, 1);
@@ -67,20 +65,10 @@ SND_SOC_DAPM_OUTPUT("VOUTL"),
 SND_SOC_DAPM_OUTPUT("VOUTR"),
 };
 
-static const struct snd_soc_dapm_route intercon[] = {
+static const struct snd_soc_dapm_route wm8728_intercon[] = {
 	{"VOUTL", NULL, "DAC"},
 	{"VOUTR", NULL, "DAC"},
 };
-
-static int wm8728_add_widgets(struct snd_soc_codec *codec)
-{
-	snd_soc_dapm_new_controls(codec->dapm, wm8728_dapm_widgets,
-				  ARRAY_SIZE(wm8728_dapm_widgets));
-
-	snd_soc_dapm_add_routes(codec->dapm, intercon, ARRAY_SIZE(intercon));
-
-	return 0;
-}
 
 static int wm8728_mute(struct snd_soc_dai *dai, int mute)
 {
@@ -181,7 +169,7 @@ static int wm8728_set_bias_level(struct snd_soc_codec *codec,
 	case SND_SOC_BIAS_ON:
 	case SND_SOC_BIAS_PREPARE:
 	case SND_SOC_BIAS_STANDBY:
-		if (codec->dapm->bias_level == SND_SOC_BIAS_OFF) {
+		if (codec->dapm.bias_level == SND_SOC_BIAS_OFF) {
 			/* Power everything up... */
 			reg = snd_soc_read(codec, WM8728_DACCTL);
 			snd_soc_write(codec, WM8728_DACCTL, reg & ~0x4);
@@ -198,7 +186,7 @@ static int wm8728_set_bias_level(struct snd_soc_codec *codec,
 		snd_soc_write(codec, WM8728_DACCTL, reg | 0x4);
 		break;
 	}
-	codec->dapm->bias_level = level;
+	codec->dapm.bias_level = level;
 	return 0;
 }
 
@@ -244,7 +232,6 @@ static int wm8728_probe(struct snd_soc_codec *codec)
 	struct wm8728_priv *wm8728 = snd_soc_codec_get_drvdata(codec);
 	int ret;
 
-	codec->control_data = wm8728->control_data;
 	ret = snd_soc_codec_set_cache_io(codec, 7, 9, wm8728->control_type);
 	if (ret < 0) {
 		printk(KERN_ERR "wm8728: failed to configure cache I/O: %d\n",
@@ -257,7 +244,6 @@ static int wm8728_probe(struct snd_soc_codec *codec)
 
 	snd_soc_add_controls(codec, wm8728_snd_controls,
 				ARRAY_SIZE(wm8728_snd_controls));
-	wm8728_add_widgets(codec);
 
 	return ret;
 }
@@ -274,9 +260,13 @@ static struct snd_soc_codec_driver soc_codec_dev_wm8728 = {
 	.suspend =	wm8728_suspend,
 	.resume =	wm8728_resume,
 	.set_bias_level = wm8728_set_bias_level,
-	.reg_cache_size = sizeof(wm8728_reg_defaults),
+	.reg_cache_size = ARRAY_SIZE(wm8728_reg_defaults),
 	.reg_word_size = sizeof(u16),
 	.reg_cache_default = wm8728_reg_defaults,
+	.dapm_widgets = wm8728_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(wm8728_dapm_widgets),
+	.dapm_routes = wm8728_intercon,
+	.num_dapm_routes = ARRAY_SIZE(wm8728_intercon),
 };
 
 #if defined(CONFIG_SPI_MASTER)
@@ -289,7 +279,6 @@ static int __devinit wm8728_spi_probe(struct spi_device *spi)
 	if (wm8728 == NULL)
 		return -ENOMEM;
 
-	wm8728->control_data = spi;
 	wm8728->control_type = SND_SOC_SPI;
 	spi_set_drvdata(spi, wm8728);
 
@@ -310,7 +299,6 @@ static int __devexit wm8728_spi_remove(struct spi_device *spi)
 static struct spi_driver wm8728_spi_driver = {
 	.driver = {
 		.name	= "wm8728-codec",
-		.bus	= &spi_bus_type,
 		.owner	= THIS_MODULE,
 	},
 	.probe		= wm8728_spi_probe,
@@ -330,7 +318,6 @@ static __devinit int wm8728_i2c_probe(struct i2c_client *i2c,
 		return -ENOMEM;
 
 	i2c_set_clientdata(i2c, wm8728);
-	wm8728->control_data = i2c;
 	wm8728->control_type = SND_SOC_I2C;
 
 	ret =  snd_soc_register_codec(&i2c->dev,

@@ -23,6 +23,11 @@
 
 #include <linux/platform_device.h>
 
+/*
+ * TODO: These dma channel defines should go away once all
+ * the omap drivers hwmod adapted.
+ */
+
 /* Move omap4 specific defines to dma-44xx.h */
 #include "dma-44xx.h"
 
@@ -188,6 +193,8 @@
 #define OMAP34XX_DMA_USIM_TX		79	/* S_DMA_78 */
 #define OMAP34XX_DMA_USIM_RX		80	/* S_DMA_79 */
 
+#define OMAP36XX_DMA_UART4_TX		81	/* S_DMA_80 */
+#define OMAP36XX_DMA_UART4_RX		82	/* S_DMA_81 */
 /*----------------------------------------------------------------------------*/
 
 #define OMAP1_DMA_TOUT_IRQ		(1 << 0)
@@ -204,6 +211,10 @@
 #define OMAP2_DMA_MISALIGNED_ERR_IRQ	(1 << 11)
 
 #define OMAP_DMA_CCR_EN			(1 << 7)
+#define OMAP_DMA_CCR_RD_ACTIVE		(1 << 9)
+#define OMAP_DMA_CCR_WR_ACTIVE		(1 << 10)
+#define OMAP_DMA_CCR_SEL_SRC_DST_SYNC	(1 << 24)
+#define OMAP_DMA_CCR_BUFFERING_DISABLE	(1 << 25)
 
 #define OMAP_DMA_DATA_TYPE_S8		0x00
 #define OMAP_DMA_DATA_TYPE_S16		0x01
@@ -214,6 +225,7 @@
 #define OMAP_DMA_SYNC_BLOCK		0x02
 #define OMAP_DMA_SYNC_PACKET		0x03
 
+#define OMAP_DMA_DST_SYNC_PREFETCH	0x02
 #define OMAP_DMA_SRC_SYNC		0x01
 #define OMAP_DMA_DST_SYNC		0x00
 
@@ -230,7 +242,12 @@
 #define OMAP_DMA_AMODE_DOUBLE_IDX	0x03
 
 #define DMA_DEFAULT_FIFO_DEPTH		0x10
-#define DMA_DEFAULT_ARB_RATE		0x01
+#if 1
+#define DMA_DEFAULT_ARB_RATE		0x01 	//0x01->0x02 0x64 =100
+#else
+#define DMA_DEFAULT_ARB_RATE		0x02	//for DMA Priority //hyunh0.cho
+#endif
+
 /* Pass THREAD_RESERVE ORed with THREAD_FIFO for tparams */
 #define DMA_THREAD_RESERVE_NORM		(0x00 << 12) /* Def */
 #define DMA_THREAD_RESERVE_ONET		(0x01 << 12)
@@ -241,8 +258,20 @@
 #define DMA_THREAD_FIFO_25		(0x02 << 14)
 #define DMA_THREAD_FIFO_50		(0x03 << 14)
 
-#define OMAP_DMA_ACTIVE			0x01
-#define OMAP2_DMA_CSR_CLEAR_MASK	0xffe
+/* DMA4_OCP_SYSCONFIG bits */
+#define DMA_SYSCONFIG_MIDLEMODE_MASK		(3 << 12)
+#define DMA_SYSCONFIG_CLOCKACTIVITY_MASK	(3 << 8)
+#define DMA_SYSCONFIG_EMUFREE			(1 << 5)
+#define DMA_SYSCONFIG_SIDLEMODE_MASK		(3 << 3)
+#define DMA_SYSCONFIG_SOFTRESET			(1 << 2)
+#define DMA_SYSCONFIG_AUTOIDLE			(1 << 0)
+
+#define DMA_SYSCONFIG_MIDLEMODE(n)		((n) << 12)
+#define DMA_SYSCONFIG_SIDLEMODE(n)		((n) << 3)
+
+#define DMA_IDLEMODE_SMARTIDLE			0x2
+#define DMA_IDLEMODE_NO_IDLE			0x1
+#define DMA_IDLEMODE_FORCE_IDLE			0x0
 
 /* Chaining modes*/
 #ifndef CONFIG_ARCH_OMAP1
@@ -255,29 +284,62 @@
 #define DMA_CH_PRIO_HIGH		0x1
 #define DMA_CH_PRIO_LOW			0x0 /* Def */
 
-/* Attributes for OMAP DMA Contrllers */
-#define ENABLE_1510_MODE		(1 << 0)
-#define DMA_LINKED_LCH			(1 << 1)
-#define GLOBAL_PRIORITY			(1 << 2)
-#define RESERVE_CHANNEL			(1 << 3)
-#define SRC_PORT			(2 << 3)
-#define DST_PORT			(2 << 4)
-#define IS_CSSA_32			(2 << 5)
-#define IS_CDSA_32			(2 << 6)
-#define SRC_INDEX			(4 << 6)
-#define DST_INDEX			(4 << 7)
-#define IS_BURST_ONLY4			(4 << 8)
-#define CLEAR_CSR_ON_READ		(4 << 9)
-#define IS_WORD_16			(8 << 9)
-#define IS_RW_PRIORIY			(8 << 0xA)
+/* Errata handling */
+#define IS_DMA_ERRATA(id)		(errata & (id))
+#define SET_DMA_ERRATA(id)		(errata |= (id))
 
-/* Errata Definitions */
-#define	DMA_CHAINING_ERRATA		(1 << 0)
-#define	DMA_BUFF_DISABLE_ERRATA		(1 << 1)
-#define	OMAP3_3_ERRATUM			(1 << 2)
-#define	DMA_SYSCONFIG_ERRATA		(1 << 3)
-#define	DMA_CH_DISABLE_ERRATA		(1 << 4)
-#define	DMA_IRQ_STATUS_ERRATA		(1 << 5)
+#define DMA_ERRATA_IFRAME_BUFFERING	BIT(0x0)
+#define DMA_ERRATA_PARALLEL_CHANNELS	BIT(0x1)
+#define DMA_ERRATA_i378			BIT(0x2)
+#define DMA_ERRATA_i541			BIT(0x3)
+#define DMA_ERRATA_i88			BIT(0x4)
+#define DMA_ERRATA_3_3			BIT(0x5)
+#define DMA_ROMCODE_BUG			BIT(0x6)
+
+/* Attributes for OMAP DMA Contrller */
+#define DMA_LINKED_LCH			BIT(0x0)
+#define GLOBAL_PRIORITY			BIT(0x1)
+#define RESERVE_CHANNEL			BIT(0x2)
+#define IS_CSSA_32			BIT(0x3)
+#define IS_CDSA_32			BIT(0x4)
+#define IS_RW_PRIORITY			BIT(0x5)
+#define ENABLE_1510_MODE		BIT(0x6)
+#define SRC_PORT			BIT(0x7)
+#define DST_PORT			BIT(0x8)
+#define SRC_INDEX			BIT(0x9)
+#define DST_INDEX			BIT(0xA)
+#define IS_BURST_ONLY4			BIT(0xB)
+#define CLEAR_CSR_ON_READ		BIT(0xC)
+#define IS_WORD_16			BIT(0xD)
+
+enum omap_reg_offsets {
+
+GCR,		GSCR,		GRST1,		HW_ID,
+PCH2_ID,	PCH0_ID,	PCH1_ID,	PCHG_ID,
+PCHD_ID,	CAPS_0,		CAPS_1,		CAPS_2,
+CAPS_3,		CAPS_4,		PCH2_SR,	PCH0_SR,
+PCH1_SR,	PCHD_SR,	REVISION,	IRQSTATUS_L0,
+IRQSTATUS_L1,	IRQSTATUS_L2,	IRQSTATUS_L3,	IRQENABLE_L0,
+IRQENABLE_L1,	IRQENABLE_L2,	IRQENABLE_L3,	SYSSTATUS,
+OCP_SYSCONFIG,
+
+/* omap1+ specific */
+CPC, CCR2, LCH_CTRL,
+
+/* Common registers for all omap's */
+CSDP,		CCR,		CICR,		CSR,
+CEN,		CFN,		CSFI,		CSEI,
+CSAC,		CDAC,		CDEI,
+CDFI,		CLNK_CTRL,
+
+/* Channel specific registers */
+CSSA,		CDSA,		COLOR,
+CCEN,		CCFN,
+
+/* omap3630 and omap4 specific */
+CDP,		CNDP,		CCDN,
+
+};
 
 enum omap_dma_burst_mode {
 	OMAP_DMA_DATA_BURST_DIS = 0,
@@ -344,31 +406,40 @@ struct omap_dma_channel_params {
 #endif
 };
 
-#include <mach/dma.h>
+struct omap_dma_lch {
+	int next_lch;
+	int dev_id;
+	u16 saved_csr;
+	u16 enabled_irqs;
+	const char *dev_name;
+	void (*callback)(int lch, u16 ch_status, void *data);
+	void *data;
+	long flags;
+	/* required for Dynamic chaining */
+	int prev_linked_ch;
+	int next_linked_ch;
+	int state;
+	int chain_id;
+	int status;
+};
+
 struct omap_dma_dev_attr {
-	u32 dma_dev_attr;
-	u16 dma_lch_count;
-	u16 dma_chan_count;
-	struct omap_dma_lch *dma_chan;
+	u32 dev_caps;
+	u16 lch_count;
+	u16 chan_count;
+	struct omap_dma_lch *chan;
 };
 
 /* System DMA platform data structure */
 struct omap_system_dma_plat_info {
 	struct omap_dma_dev_attr *dma_attr;
-	void __iomem *omap_dma_base;
 	u32 errata;
-	void (*enable_irq_lch)(int lch);
 	void (*disable_irq_lch)(int lch);
-	void (*enable_lnk)(int lch);
-	void (*disable_lnk)(int lch);
+	void (*show_dma_caps)(void);
 	void (*clear_lch_regs)(int lch);
-	int (*get_gdma_dev)(int req);
-	void (*set_gdma_dev)(int req, int dev);
-	void (*enable_channel_irq)(int lch);
-	void (*disable_channel_irq)(int lch);
-	void (*set_dma_chain_ch)(int free_ch);
-	void (*dma_context_save)(void);
-	void (*dma_context_restore)(void);
+	void (*clear_dma)(int lch);
+	void (*dma_write)(u32 val, int reg, int lch);
+	u32 (*dma_read)(int reg, int lch);
 };
 
 extern void omap_set_dma_priority(int lch, int dst_port, int priority);
@@ -429,8 +500,33 @@ extern int omap_get_dma_index(int lch, int *ei, int *fi);
 
 void omap_dma_global_context_save(void);
 void omap_dma_global_context_restore(void);
+void omap_dma_set_midle(unsigned int);
+
 
 extern void omap_dma_disable_irq(int lch);
+
+/* Chaining APIs */
+#ifndef CONFIG_ARCH_OMAP1
+extern int omap_request_dma_chain(int dev_id, const char *dev_name,
+				  void (*callback) (int lch, u16 ch_status,
+						    void *data),
+				  int *chain_id, int no_of_chans,
+				  int chain_mode,
+				  struct omap_dma_channel_params params);
+extern int omap_free_dma_chain(int chain_id);
+extern int omap_dma_chain_a_transfer(int chain_id, int src_start,
+				     int dest_start, int elem_count,
+				     int frame_count, void *callbk_data);
+extern int omap_start_dma_chain_transfers(int chain_id);
+extern int omap_stop_dma_chain_transfers(int chain_id);
+extern int omap_get_dma_chain_index(int chain_id, int *ei, int *fi);
+extern int omap_get_dma_chain_dst_pos(int chain_id);
+extern int omap_get_dma_chain_src_pos(int chain_id);
+
+extern int omap_modify_dma_chain_params(int chain_id,
+					struct omap_dma_channel_params params);
+extern int omap_dma_chain_status(int chain_id);
+#endif
 
 #if defined(CONFIG_ARCH_OMAP1) && defined(CONFIG_FB_OMAP)
 #include <mach/lcd_dma.h>

@@ -18,10 +18,8 @@
 #include <linux/cpufreq.h>
 #include <linux/clk.h>
 #include <linux/pm_qos_params.h>
-
-#include <plat/opp.h>
-
-#include "powerdomain.h"
+#include <linux/opp.h>
+#include <linux/pm_qos_params.h>
 
 /*
  * agent_id values for use with omap_pm_set_min_bus_tput():
@@ -345,23 +343,14 @@ unsigned long omap_pm_cpu_get_freq(void);
  */
 
 /**
- * omap_pm_get_dev_context_loss_count - return count of times dev has lost ctx
- * @dev: struct device *
+ * omap_pm_was_context_lost - return true if a device lost hw context
  *
- * This function returns the number of times that the device @dev has
- * lost its internal context.  This generally occurs on a powerdomain
- * transition to OFF.  Drivers use this as an optimization to avoid restoring
- * context if the device hasn't lost it.  To use, drivers should initially
- * call this in their context save functions and store the result.  Early in
- * the driver's context restore function, the driver should call this function
- * again, and compare the result to the stored counter.  If they differ, the
- * driver must restore device context.   If the number of context losses
- * exceeds the maximum positive integer, the function will wrap to 0 and
- * continue counting.  Returns the number of context losses for this device,
- * or -EINVAL upon error.
+ * This function returns a bool value indication if a device has lost
+ * its context. Depending on the HW implementation of the device, Context
+ * can be lost in OFF or OSWR. This function reads and *CLEARS* the context
+ * lost registers for the device.
  */
-int omap_pm_get_dev_context_loss_count(struct device *dev);
-
+bool omap_pm_was_context_lost(struct device *dev);
 
 /**
  * omap_pm_set_min_mpu_freq - sets the min frequency the mpu should be allowed
@@ -370,5 +359,10 @@ int omap_pm_get_dev_context_loss_count(struct device *dev);
  * to release the constraint, the f parameter should be passed as -1.
  */
 int omap_pm_set_min_mpu_freq(struct device *dev, unsigned long f);
+
+void omap_pm_enable_off_mode(void);
+void omap_pm_disable_off_mode(void);
+
+extern bool off_mode_enabled;
 
 #endif

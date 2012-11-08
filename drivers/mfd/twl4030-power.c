@@ -31,8 +31,6 @@
 
 #include <asm/mach-types.h>
 
-#include <plat/smartreflex.h>
-
 static u8 twl4030_start_script_address = 0x2b;
 
 #define PWR_P1_SW_EVENTS	0x10
@@ -64,14 +62,6 @@ static u8 twl4030_start_script_address = 0x2b;
 #define	R_SEQ_ADD_WARM		PHY_TO_OFF_PM_MASTER(0x58)
 #define R_MEMORY_ADDRESS	PHY_TO_OFF_PM_MASTER(0x59)
 #define R_MEMORY_DATA		PHY_TO_OFF_PM_MASTER(0x5a)
-
-/* Smartreflex Control */
-#define R_DCDC_GLOBAL_CFG	PHY_TO_OFF_PM_RECEIVER(0x61)
-#define CFG_ENABLE_SRFLX	0x08
-
-#define R_PROTECT_KEY		0x0E
-#define R_KEY_1			0xC0
-#define R_KEY_2			0x0C
 
 /* resource configuration registers
    <RESOURCE>_DEV_GRP   at address 'n+0'
@@ -130,7 +120,7 @@ static u8 res_config_addrs[] = {
 	[RES_HFCLKOUT]	= 0x8b,
 	[RES_32KCLKOUT]	= 0x8e,
 	[RES_RESET]	= 0x91,
-	[RES_Main_Ref]	= 0x94,
+	[RES_MAIN_REF]	= 0x94,
 };
 
 static int __init twl4030_write_script_byte(u8 address, u8 byte)
@@ -457,12 +447,13 @@ static int __init load_twl4030_script(struct twl4030_script *tscript,
 		if (err)
 			goto out;
 	}
-	if (tscript->flags & TWL4030_SLEEP_SCRIPT)
-		if (order)
+	if (tscript->flags & TWL4030_SLEEP_SCRIPT) {
+		if (!order)
 			pr_warning("TWL4030: Bad order of scripts (sleep "\
 					"script before wakeup) Leads to boot"\
 					"failure on some boards\n");
 		err = twl4030_config_sleep_sequence(address);
+	}
 out:
 	return err;
 }
@@ -471,15 +462,17 @@ int twl4030_remove_script(u8 flags)
 {
 	int err = 0;
 
-	err = twl_i2c_write_u8(TWL4030_MODULE_PM_MASTER, R_KEY_1,
-			R_PROTECT_KEY);
+	err = twl_i2c_write_u8(TWL4030_MODULE_PM_MASTER,
+			TWL4030_PM_MASTER_KEY_CFG1,
+			TWL4030_PM_MASTER_PROTECT_KEY);
 	if (err) {
 		pr_err("twl4030: unable to unlock PROTECT_KEY\n");
 		return err;
 	}
 
-	err = twl_i2c_write_u8(TWL4030_MODULE_PM_MASTER, R_KEY_2,
-			R_PROTECT_KEY);
+	err = twl_i2c_write_u8(TWL4030_MODULE_PM_MASTER,
+			TWL4030_PM_MASTER_KEY_CFG2,
+			TWL4030_PM_MASTER_PROTECT_KEY);
 	if (err) {
 		pr_err("twl4030: unable to unlock PROTECT_KEY\n");
 		return err;
@@ -492,9 +485,9 @@ int twl4030_remove_script(u8 flags)
 			return err;
 	}
 	if (flags & TWL4030_WAKEUP12_SCRIPT) {
-		if (err)
 		err = twl_i2c_write_u8(TWL4030_MODULE_PM_MASTER, END_OF_SCRIPT,
 				R_SEQ_ADD_S2A12);
+		if (err)
 			return err;
 	}
 	if (flags & TWL4030_WAKEUP3_SCRIPT) {
@@ -510,34 +503,12 @@ int twl4030_remove_script(u8 flags)
 			return err;
 	}
 
-	err = twl_i2c_write_u8(TWL4030_MODULE_PM_MASTER, 0, R_PROTECT_KEY);
+	err = twl_i2c_write_u8(TWL4030_MODULE_PM_MASTER, 0,
+			TWL4030_PM_MASTER_PROTECT_KEY);
 	if (err)
 		pr_err("TWL4030 Unable to relock registers\n");
 
 	return err;
-}
-
-/* API to enable smrtreflex on Triton side */
-static void twl4030_smartreflex_init(void)
-{
-	int ret = 0;
-	u8 read_val;
-
-	ret = twl_i2c_read_u8(TWL4030_MODULE_PM_RECEIVER, &read_val,
-			R_DCDC_GLOBAL_CFG);
-	read_val |= CFG_ENABLE_SRFLX;
-	ret |= twl_i2c_write_u8(TWL4030_MODULE_PM_RECEIVER, read_val,
-			R_DCDC_GLOBAL_CFG);
-}
-
-struct omap_smartreflex_pmic_data twl4030_sr_data = {
-       .sr_pmic_init   = twl4030_smartreflex_init,
-};
-
-void __init twl4030_power_sr_init()
-{
-	/* Register the SR init API with the Smartreflex driver */
-	omap_sr_register_pmic(&twl4030_sr_data);
 }
 
 void __init twl4030_power_init(struct twl4030_power_data *twl4030_scripts)
@@ -547,13 +518,15 @@ void __init twl4030_power_init(struct twl4030_power_data *twl4030_scripts)
 	struct twl4030_resconfig *resconfig;
 	u8 address = twl4030_start_script_address;
 
-	err = twl_i2c_write_u8(TWL4030_MODULE_PM_MASTER, R_KEY_1,
-				R_PROTECT_KEY);
+	err = twl_i2c_write_u8(TWL4030_MODULE_PM_MASTER,
+			TWL4030_PM_MASTER_KEY_CFG1,
+			TWL4030_PM_MASTER_PROTECT_KEY);
 	if (err)
 		goto unlock;
 
-	err = twl_i2c_write_u8(TWL4030_MODULE_PM_MASTER, R_KEY_2,
-				R_PROTECT_KEY);
+	err = twl_i2c_write_u8(TWL4030_MODULE_PM_MASTER,
+			TWL4030_PM_MASTER_KEY_CFG2,
+			TWL4030_PM_MASTER_PROTECT_KEY);
 	if (err)
 		goto unlock;
 
@@ -575,7 +548,8 @@ void __init twl4030_power_init(struct twl4030_power_data *twl4030_scripts)
 		}
 	}
 
-	err = twl_i2c_write_u8(TWL4030_MODULE_PM_MASTER, 0, R_PROTECT_KEY);
+	err = twl_i2c_write_u8(TWL4030_MODULE_PM_MASTER, 0,
+			TWL4030_PM_MASTER_PROTECT_KEY);
 	if (err)
 		pr_err("TWL4030 Unable to relock registers\n");
 	return;

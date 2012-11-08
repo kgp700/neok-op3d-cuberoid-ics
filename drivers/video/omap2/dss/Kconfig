@@ -1,16 +1,15 @@
 menuconfig OMAP2_DSS
-        tristate "OMAP2/3/4 Display Subsystem support (EXPERIMENTAL)"
-        depends on ARCH_OMAP2 || ARCH_OMAP3 || ARCH_OMAP4
-	default y
+        tristate "OMAP2+ Display Subsystem support (EXPERIMENTAL)"
+        depends on ARCH_OMAP2PLUS
         help
-          OMAP2/3/4 Display Subsystem support.
+	  OMAP2+ Display Subsystem support.
 
 if OMAP2_DSS
 
 config OMAP2_VRAM_SIZE
 	int "VRAM size (MB)"
 	range 0 32
-	default 4
+	default 0
 	help
 	  The amount of SDRAM to reserve at boot time for video RAM use.
 	  This VRAM will be used by omapfb and other drivers that need
@@ -57,15 +56,18 @@ config OMAP2_DSS_RFBI
 
 config OMAP2_DSS_VENC
 	bool "VENC support"
-        default n
+        default y
 	help
 	  OMAP Video Encoder support for S-Video and composite TV-out.
 
-config OMAP2_DSS_HDMI
+config OMAP4_DSS_HDMI
 	bool "HDMI support"
-        default n
+	depends on ARCH_OMAP4
+	select HDMI_TI_4XXX_IP
+        default y
 	help
-	  OMAP HDMI panel support.
+	  HDMI Interface. This adds the High Definition Multimedia Interface.
+	  See http://www.hdmi.org/ for HDMI specification.
 
 config OMAP2_DSS_SDI
 	bool "SDI support"
@@ -89,43 +91,85 @@ config OMAP2_DSS_DSI
 
 	  See http://www.mipi.org/ for DSI spesifications.
 
-config COSMO_GAMMA
-	bool "COSMO LCD Gamma"
-	depends on MACH_LGE_COSMOPOLITAN
+config HRZ_II
+	bool "HRZ FullHD"
+	depends on MACH_LGE_CX2
+	default y
+	help
+		HRZ FullHD Feature Enable
+
+config P2_GAMMA
+	bool "P2 LCD Gamma"
+	depends on MACH_LGE_P2 || MACH_LGE_CX2
 	default n
 	help
-	   COSMO POLITAN LCD Gamma Value Enable.
+	   P2 LCD Gamma Value Enable.
 
 choice
         prompt "Memory split"
-	depends on COSMO_GAMMA
-        default COSMO_GAMMA_08
+	depends on P2_GAMMA
+        default P2_GAMMA_08
         help
           Select the desired split between kernel and user memory.
  
           If you are not absolutely sure what you are doing, leave this
           option alone!
  
-        config COSMO_GAMMA_08
+        config P2_GAMMA_08
                 bool "Gamma 0.8"
-        config COSMO_GAMMA_10
+        config P2_GAMMA_10
                 bool "Gamma 1.0"
-        config COSMO_GAMMA_12
+        config P2_GAMMA_12
                 bool "Gamma 1.2"
-	config COSMO_S_CURVE
+	config P2_S_CURVE
 		bool "User Set Value"
 endchoice
-config OMAP2_DSS_USE_DSI_PLL
-	bool "Use DSI PLL for PCLK (EXPERIMENTAL)"
+
+config U2_GAMMA
+	bool "U2 LCD Gamma"
+	depends on MACH_LGE_U2
 	default n
-	depends on OMAP2_DSS_DSI
 	help
-	  Use DSI PLL to generate pixel clock.  Currently only for DPI output.
-	  DSI PLL can be used to generate higher and more precise pixel clocks.
+	   U2 LCD Gamma Value Enable.
+
+choice
+        prompt "Memory split"
+	depends on MACH_LGE_U2
+        default U2_S_CURVE
+        help
+          Select the desired split between kernel and user memory.
+
+          If you are not absolutely sure what you are doing, leave this
+          option alone!
+
+	config U2_S_CURVE
+		bool "User Set Value"
+endchoice
+
+config CX2_GAMMA
+	bool "CX2 LCD Gamma"
+	depends on MACH_LGE_CX2
+	default n
+	help
+	   U2 LCD Gamma Value Enable.
+
+choice
+        prompt "Memory split"
+	depends on MACH_LGE_CX2
+        default CX2_S_CURVE
+        help
+          Select the desired split between kernel and user memory.
+
+          If you are not absolutely sure what you are doing, leave this
+          option alone!
+
+	config CX2_S_CURVE
+		bool "User Set Value"
+endchoice
 
 config OMAP2_DSS_FAKE_VSYNC
 	bool "Fake VSYNC irq from manual update displays"
-	default y
+	default n
 	help
 	  If this is selected, DSI will generate a fake DISPC VSYNC interrupt
 	  when DSI has sent a frame. This is only needed with DSI or RFBI
@@ -135,8 +179,7 @@ config OMAP2_DSS_FAKE_VSYNC
 config OMAP2_DSS_MIN_FCK_PER_PCK
 	int "Minimum FCK/PCK ratio (for scaling)"
 	range 0 32
-	default 4  if ARCH_OMAP2 || ARCH_OMAP3
-	default 0  if ARCH_OMAP4
+	default 0
 	help
 	  This can be used to adjust the minimum FCK/PCK ratio.
 
@@ -150,5 +193,16 @@ config OMAP2_DSS_MIN_FCK_PER_PCK
 
 	  Max FCK is 173MHz, so this doesn't work if your PCK
 	  is very high.
+
+config OMAP2_DSS_SLEEP_AFTER_VENC_RESET
+	bool "Sleep 20ms after VENC reset"
+	default y
+	help
+	  There is a 20ms sleep after VENC reset which seemed to fix the
+	  reset. The reason for the bug is unclear, and it's also unclear
+	  on what platforms this happens.
+
+	  This option enables the sleep, and is enabled by default. You can
+	  disable the sleep if it doesn't cause problems on your platform.
 
 endif

@@ -20,7 +20,6 @@
 #include <sound/ac97_codec.h>
 #include <sound/initval.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 #include "wm9712.h"
 
 #define WM9712_VERSION "0.4"
@@ -333,7 +332,7 @@ SND_SOC_DAPM_INPUT("MIC1"),
 SND_SOC_DAPM_INPUT("MIC2"),
 };
 
-static const struct snd_soc_dapm_route audio_map[] = {
+static const struct snd_soc_dapm_route wm9712_audio_map[] = {
 	/* virtual mixer - mixes left & right channels for spk and mono */
 	{"AC97 Mixer", NULL, "Left DAC"},
 	{"AC97 Mixer", NULL, "Right DAC"},
@@ -430,16 +429,6 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"ROUT2", NULL, "Speaker PGA"},
 };
 
-static int wm9712_add_widgets(struct snd_soc_codec *codec)
-{
-	snd_soc_dapm_new_controls(codec->dapm, wm9712_dapm_widgets,
-				  ARRAY_SIZE(wm9712_dapm_widgets));
-
-	snd_soc_dapm_add_routes(codec->dapm, audio_map, ARRAY_SIZE(audio_map));
-
-	return 0;
-}
-
 static unsigned int ac97_read(struct snd_soc_codec *codec,
 	unsigned int reg)
 {
@@ -524,7 +513,7 @@ static struct snd_soc_dai_ops wm9712_dai_ops_aux = {
 	.prepare	= ac97_aux_prepare,
 };
 
-struct snd_soc_dai_driver wm9712_dai[] = {
+static struct snd_soc_dai_driver wm9712_dai[] = {
 {
 	.name = "wm9712-hifi",
 	.ac97_control = 1,
@@ -570,7 +559,7 @@ static int wm9712_set_bias_level(struct snd_soc_codec *codec,
 		ac97_write(codec, AC97_POWERDOWN, 0xffff);
 		break;
 	}
-	codec->dapm->bias_level = level;
+	codec->dapm.bias_level = level;
 	return 0;
 }
 
@@ -651,7 +640,6 @@ static int wm9712_soc_probe(struct snd_soc_codec *codec)
 	wm9712_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
 	snd_soc_add_controls(codec, wm9712_snd_ac97_controls,
 				ARRAY_SIZE(wm9712_snd_ac97_controls));
-	wm9712_add_widgets(codec);
 
 	return 0;
 
@@ -674,10 +662,14 @@ static struct snd_soc_codec_driver soc_codec_dev_wm9712 = {
 	.read = ac97_read,
 	.write = ac97_write,
 	.set_bias_level = wm9712_set_bias_level,
-	.reg_cache_size = sizeof(wm9712_reg),
+	.reg_cache_size = ARRAY_SIZE(wm9712_reg),
 	.reg_word_size = sizeof(u16),
 	.reg_cache_step = 2,
 	.reg_cache_default = wm9712_reg,
+	.dapm_widgets = wm9712_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(wm9712_dapm_widgets),
+	.dapm_routes = wm9712_audio_map,
+	.num_dapm_routes = ARRAY_SIZE(wm9712_audio_map),
 };
 
 static __devinit int wm9712_probe(struct platform_device *pdev)

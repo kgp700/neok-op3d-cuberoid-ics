@@ -26,119 +26,43 @@
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
 
-
-struct dmic_data {
-	void *data;
-};
-
-static int dmic_set_dai_sysclk(struct snd_soc_dai *codec_dai,
-		int clk_id, unsigned int freq, int dir)
-{
-	return 0;
-}
-
-static int dmic_startup(struct snd_pcm_substream *substream,
-			struct snd_soc_dai *dai)
-{
-	return 0;
-}
-
-static int dmic_trigger(struct snd_pcm_substream *substream,
-			int cmd, struct snd_soc_dai *dai)
-{
-	return 0;
-}
-
-static int dmic_hw_params(struct snd_pcm_substream *substream,
-			struct snd_pcm_hw_params *params,
-			struct snd_soc_dai *dai)
-{
-	return 0;
-}
-
-static struct snd_soc_dai_ops dmic_dai_ops = {
-	.startup	= dmic_startup,
-	.hw_params	= dmic_hw_params,
-	.trigger	= dmic_trigger,
-	.set_sysclk	= dmic_set_dai_sysclk,
-};
-
 static struct snd_soc_dai_driver dmic_dai = {
 	.name = "dmic-hifi",
 	.capture = {
 		.stream_name = "Capture",
-		.channels_min = 2,
-		.channels_max = 2,
-		.rates = SNDRV_PCM_RATE_96000 | SNDRV_PCM_RATE_192000,
-		.formats = SNDRV_PCM_FMTBIT_S32_LE,
+		.channels_min = 1,
+		.channels_max = 8,
+		.rates = SNDRV_PCM_RATE_CONTINUOUS,
+		.formats = SNDRV_PCM_FMTBIT_S32_LE
+			| SNDRV_PCM_FMTBIT_S24_LE
+			| SNDRV_PCM_FMTBIT_S16_LE,
 	},
-	.ops = &dmic_dai_ops,
 };
 
-#ifdef CONFIG_PM
-static int dmic_suspend(struct snd_soc_codec *codec, pm_message_t state)
-{
-//	dmic_set_bias_level(codec, SND_SOC_BIAS_OFF);
+static const struct snd_soc_dapm_widget dmic_dapm_widgets[] = {
+	SND_SOC_DAPM_AIF_OUT("DMIC AIF", "Capture", 0,
+			     SND_SOC_NOPM, 0, 0),
+	SND_SOC_DAPM_INPUT("DMic"),
+};
 
-	return 0;
-}
-
-static int dmic_resume(struct snd_soc_codec *codec)
-{
-	//dmic_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
-//	dmic_set_bias_level(codec, codec->suspend_bias_level);
-
-	return 0;
-}
-#else
-#define dmic_suspend NULL
-#define dmic_resume NULL
-#endif
+static const struct snd_soc_dapm_route intercon[] = {
+	{"DMIC AIF", NULL, "DMic"},
+};
 
 static int dmic_probe(struct snd_soc_codec *codec)
 {
-//	struct dmic_platform_data *dmic_pdata = codec->dev->platform_data;
-	struct dmic_data *priv;
-//	int ret = 0;
+	struct snd_soc_dapm_context *dapm = &codec->dapm;
 
-	priv = kzalloc(sizeof(struct dmic_data), GFP_KERNEL);
-	if (priv == NULL)
-		return -ENOMEM;
-	snd_soc_codec_set_drvdata(codec, priv);
-
-#if 0
-	/* power on device */
-	ret = dmic_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
-	if (ret)
-		goto irq_err;
-
-	snd_soc_add_controls(codec, dmic_snd_controls,
-				ARRAY_SIZE(dmic_snd_controls));
-	dmic_add_widgets(codec);
-#endif
-	return 0;
-}
-
-static int dmic_remove(struct snd_soc_codec *codec)
-{
-	struct dmic_data *priv = snd_soc_codec_get_drvdata(codec);
-
-//	dmic_set_bias_level(codec, SND_SOC_BIAS_OFF);
-	kfree(priv);
+	snd_soc_dapm_new_controls(dapm, dmic_dapm_widgets,
+				  ARRAY_SIZE(dmic_dapm_widgets));
+        snd_soc_dapm_add_routes(dapm, intercon, ARRAY_SIZE(intercon));
+	snd_soc_dapm_new_widgets(dapm);
 
 	return 0;
 }
 
-struct snd_soc_codec_driver soc_dmic = {
-	.probe = dmic_probe,
-	.remove = dmic_remove,
-	.suspend = dmic_suspend,
-	.resume = dmic_resume,
-//	.read = dmic_read_reg_cache,
-//	.write = dmic_write,
-//	.set_bias_level = dmic_set_bias_level,
-//	.reg_cache_size = ARRAY_SIZE(dmic_reg),
-//	.reg_cache_default = dmic_reg,
+static struct snd_soc_codec_driver soc_dmic = {
+	.probe	= dmic_probe,
 };
 
 static int __devinit dmic_dev_probe(struct platform_device *pdev)
@@ -152,6 +76,8 @@ static int __devexit dmic_dev_remove(struct platform_device *pdev)
 	snd_soc_unregister_codec(&pdev->dev);
 	return 0;
 }
+
+MODULE_ALIAS("platform:dmic-codec");
 
 static struct platform_driver dmic_driver = {
 	.driver = {

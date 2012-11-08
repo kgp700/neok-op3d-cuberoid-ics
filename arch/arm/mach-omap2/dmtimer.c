@@ -1,5 +1,5 @@
 /**
- * OMAP2PLUS Dual-Mode Timers - platform device registration
+ * OMAP2+ Dual-Mode Timers - platform device registration
  *
  * Contains first level initialization routines which extracts timers
  * information from hwmod database and registers with linux device model.
@@ -20,29 +20,37 @@
  */
 
 #include <linux/clk.h>
-#include <linux/io.h>
 #include <linux/err.h>
 #include <linux/slab.h>
 
 #include <plat/dmtimer.h>
-#include <plat/omap_hwmod.h>
 #include <plat/omap_device.h>
+#include <plat/cpu.h>
+#include <plat/omap_hwmod.h>
+#include <plat/omap-pm.h>
 
-static int early_timer_count __initdata = 1;
+#include "powerdomain.h"
+
+static u8 __initdata system_timer_id;
 
 /**
  * omap2_dm_timer_set_src - change the timer input clock source
  * @pdev:	timer platform device pointer
- * @timer_clk:	current clock source
  * @source:	array index of parent clock source
  */
 static int omap2_dm_timer_set_src(struct platform_device *pdev, int source)
 {
 	int ret;
 	struct dmtimer_platform_data *pdata = pdev->dev.platform_data;
-	struct clk *fclk = clk_get(&pdev->dev, "fck");
 	struct clk *new_fclk;
 	char *fclk_name = "32k_ck"; /* default name */
+
+	struct clk *fclk = clk_get(&pdev->dev, "fck");
+	if (IS_ERR_OR_NULL(fclk)) {
+		dev_err(&pdev->dev, "%s: %d: clk_get() FAILED\n",
+			__func__, __LINE__);
+		return -EINVAL;
+	}
 
 	switch (source) {
 	case OMAP_TIMER_SRC_SYS_CLK:
@@ -58,20 +66,16 @@ static int omap2_dm_timer_set_src(struct platform_device *pdev, int source)
 			fclk_name = "alt_ck";
 			break;
 		}
-		dev_dbg(&pdev->dev, "%s:%d: invalid clk src.\n",
+	default:
+		dev_err(&pdev->dev, "%s: %d: invalid clk src.\n",
 			__func__, __LINE__);
-		return -EINVAL;
-	}
-
-	if (IS_ERR_OR_NULL(fclk)) {
-		dev_dbg(&pdev->dev, "%s:%d: clk_get() FAILED\n",
-			__func__, __LINE__);
+		clk_put(fclk);
 		return -EINVAL;
 	}
 
 	new_fclk = clk_get(&pdev->dev, fclk_name);
 	if (IS_ERR_OR_NULL(new_fclk)) {
-		dev_dbg(&pdev->dev, "%s:%d: clk_get() %s FAILED\n",
+		dev_err(&pdev->dev, "%s: %d: clk_get() %s FAILED\n",
 			__func__, __LINE__, fclk_name);
 		clk_put(fclk);
 		return -EINVAL;
@@ -79,7 +83,7 @@ static int omap2_dm_timer_set_src(struct platform_device *pdev, int source)
 
 	ret = clk_set_parent(fclk, new_fclk);
 	if (IS_ERR_VALUE(ret)) {
-		dev_dbg(&pdev->dev, "%s:clk_set_parent() to %s FAILED\n",
+		dev_err(&pdev->dev, "%s: clk_set_parent() to %s FAILED\n",
 			__func__, fclk_name);
 		ret = -EINVAL;
 	}
@@ -110,43 +114,18 @@ struct omap_device_pm_latency omap2_dmtimer_latency[] = {
  * end of function call memory is allocated for timer device and it is
  * registered to the framework ready to be proved by the driver.
  */
-static int __init omap_timer_init(struct omap_hwmod *oh, void *user)
+static int __init omap_timer_init(struct omap_hwmod *oh, void *unused)
 {
 	int id;
 	int ret = 0;
 	char *name = "omap_timer";
 	struct dmtimer_platform_data *pdata;
 	struct omap_device *od;
-
-	pr_debug("%s:%s\n", __func__, oh->name);
-
-	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
-	if (!pdata) {
-		pr_err("%s: No memory for [%s]\n", __func__, oh->name);
-		return -ENOMEM;
-	}
-
-	if ((void *)user)
-		pdata->is_early_init = 1;
-	else
-		pdata->is_early_init = 0;
-
-	/* hook clock set/get functions */
-	pdata->set_timer_src = omap2_dm_timer_set_src;
-
-	/* read timer ip version */
-	pdata->timer_ip_type = oh->class->rev;
-
-	if (pdata->timer_ip_type == OMAP_TIMER_IP_VERSION_1) {
-		pdata->intr_offset = 0;
-		pdata->func_offset = 0;
-	} else {
-		pdata->intr_offset = 0x10;
-		pdata->func_offset = 0x14;
-	}
+	struct omap_secure_timer_dev_attr *secure_timer_dev_attr;
+	struct powerdomain *pwrdm;
 
 	/*
-	 * Extract the id from name field in hwmod database
+	 * Extract the IDs from name field in hwmod database
 	 * and use the same for constructing ids' for the
 	 * timer devices. In a way, we are avoiding usage of
 	 * static variable witin the function to do the same.
@@ -156,6 +135,32 @@ static int __init omap_timer_init(struct omap_hwmod *oh, void *user)
 	 * switch back static variable mechanism.
 	 */
 	sscanf(oh->name, "timer%2d", &id);
+	if (unlikely(id == system_timer_id))
+		goto end;
+
+	pr_debug("%s: %s\n", __func__, oh->name);
+
+	/* do not register secure timer */
+	secure_timer_dev_attr = oh->dev_attr;
+	if (secure_timer_dev_attr && secure_timer_dev_attr->is_secure_timer)
+		goto end;
+
+	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
+	if (!pdata) {
+		pr_err("%s: No memory for [%s]\n", __func__, oh->name);
+		ret = -ENOMEM;
+		goto end;
+	}
+	pdata->set_timer_src = omap2_dm_timer_set_src;
+	pdata->timer_ip_type = oh->class->rev;
+	pwrdm = omap_hwmod_get_pwrdm(oh);
+	if (!pwrdm) {
+		pr_debug("%s: could not find pwrdm for (%s) in omap hwmod!\n",
+			__func__, oh->name);
+		ret = -EINVAL;
+		goto err_free_mem;
+	}
+	pdata->loses_context = pwrdm_can_ever_lose_context(pwrdm);
 
 	od = omap_device_build(name, id, oh, pdata, sizeof(*pdata),
 			omap2_dmtimer_latency,
@@ -163,53 +168,130 @@ static int __init omap_timer_init(struct omap_hwmod *oh, void *user)
 			pdata->is_early_init);
 
 	if (IS_ERR(od)) {
-		pr_err("%s: Can't build omap_device for %s:%s.\n",
+		pr_err("%s: Can't build omap_device for %s: %s.\n",
 			__func__, name, oh->name);
 		ret = -EINVAL;
-	} else if (pdata->is_early_init)
-		early_timer_count++;
+	}
 
+err_free_mem:
 	kfree(pdata);
-
+end:
 	return ret;
 }
 
 /**
- * omap2_dm_timer_early_init - top level early timer initialization
- * called in the last part of omap2_init_common_hw
+ * omap2_system_timer_init - top level system timer initialization
+ * called from omap2_gp_timer_init() in timer-gp.c
+ * @id	: system timer id
  *
- * Uses dedicated hwmod api to parse through hwmod database for
- * given class name and then build and register the timer device.
- * At the end driver is registered and early probe initiated.
+ * This function does hwmod setup for the system timer entry needed
+ * prior to building and registering the device. After the device is
+ * registered early probe initiated.
  */
-void __init omap2_dm_timer_early_init(void)
+int __init omap2_system_timer_init(u8 id)
 {
-	int early_init = 1; /* identify early init in omap2_timer_init() */
-	int ret = omap_hwmod_for_each_by_class("timer",
-		omap_timer_init, &early_init);
+	int ret = 0;
+	char *name = "omap_timer";
+	struct dmtimer_platform_data *pdata;
+	struct omap_device *od;
+	struct omap_hwmod *oh;
+	struct powerdomain *pwrdm;
+	char system_timer_name[8]; /* 8 = sizeof("timerXX0") */
 
-	if (unlikely(ret)) {
-		pr_debug("%s: device registration FAILED!\n", __func__);
-		return;
+	system_timer_id = id;
+
+	sprintf(system_timer_name, "timer%d", id);
+	ret = omap_hwmod_setup_one(system_timer_name);
+	if (ret) {
+		pr_err("%s: omap_hwmod_setup_one(%s) failed.\n",
+				__func__, system_timer_name);
+		goto end;
+	}
+	oh = omap_hwmod_lookup(system_timer_name);
+	if (!oh) {
+		pr_debug("%s: could not find (%s) in omap_hwmod_list!\n",
+			__func__, system_timer_name);
+		ret = -EINVAL;
+		goto end;
+	}
+
+	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
+	if (!pdata) {
+		pr_err("%s: No memory for [%s]\n", __func__, oh->name);
+		ret = -ENOMEM;
+		goto end;
+	}
+	pdata->is_early_init = 1;
+	pdata->set_timer_src = omap2_dm_timer_set_src;
+	pdata->timer_ip_type = oh->class->rev;
+	pdata->needs_manual_reset = 0;
+	pwrdm = omap_hwmod_get_pwrdm(oh);
+	if (!pwrdm) {
+		pr_debug("%s: could not find pwrdm for (%s) in omap hwmod!\n",
+			__func__, oh->name);
+		ret = -EINVAL;
+		goto err_free_mem;
+	}
+	pdata->loses_context = pwrdm_can_ever_lose_context(pwrdm);
+
+	od = omap_device_build(name, id, oh, pdata, sizeof(*pdata),
+			omap2_dmtimer_latency,
+			ARRAY_SIZE(omap2_dmtimer_latency),
+			pdata->is_early_init);
+
+	if (IS_ERR(od)) {
+		pr_err("%s: Can't build omap_device for %s: %s.\n",
+			__func__, name, oh->name);
+		ret = -EINVAL;
+		goto err_free_mem;
 	}
 
 	early_platform_driver_register_all("earlytimer");
-	early_platform_driver_probe("earlytimer", early_timer_count, 0);
+	early_platform_driver_probe("earlytimer", 1, 0);
+
+err_free_mem:
+	kfree(pdata);
+end:
+	return ret;
 }
 
 /**
- * omap2_dm_timer_init - top level timer normal device initialization
+ * omap2_system_timer_set_src - change the timer input clock source
+ * Allow system timer to program clock source before pm_runtime
+ * framework is available during system boot.
+ * @timer:       pointer to struct omap_dm_timer
+ * @source:     array index of parent clock source
+ */
+int __init omap2_system_timer_set_src(struct omap_dm_timer *timer, int source)
+{
+	int ret;
+
+	if (IS_ERR_OR_NULL(timer) || IS_ERR_OR_NULL(timer->fclk))
+		return -EINVAL;
+
+	clk_disable(timer->fclk);
+	ret = omap2_dm_timer_set_src(timer->pdev, source);
+	clk_enable(timer->fclk);
+
+	return ret;
+}
+
+/**
+ * omap2_dm_timer_init - top level regular device initialization
  *
- * Uses dedicated hwmod API to parse through hwmod database for
- * given class names and then build and register the timer device.
+ * Uses dedicated hwmod api to parse through hwmod database for
+ * given class name and then build and register the timer device.
  */
 static int __init omap2_dm_timer_init(void)
 {
-	int ret = omap_hwmod_for_each_by_class("timer", omap_timer_init, NULL);
+	int ret;
 
-	if (unlikely(ret))
-		pr_debug("%s: device registration FAILED!\n", __func__);
+	ret = omap_hwmod_for_each_by_class("timer", omap_timer_init, NULL);
+	if (unlikely(ret)) {
+		pr_err("%s: device registration failed.\n", __func__);
+		return -EINVAL;
+	}
 
-	return ret;
+	return 0;
 }
 arch_initcall(omap2_dm_timer_init);

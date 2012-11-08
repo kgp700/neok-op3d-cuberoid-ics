@@ -26,42 +26,6 @@
 #include <linux/i2c/twl.h>
 #include <linux/i2c/bq2415x.h>
 
-/* BQ24153 / BQ24156 / BQ24158 */
-/* Status/Control Register */
-#define REG_STATUS_CONTROL			0x00
-#define		TIMER_RST			(1 << 7)
-#define		ENABLE_STAT_PIN			(1 << 6)
-
-/* Control Register */
-#define REG_CONTROL_REGISTER			0x01
-#define		INPUT_CURRENT_LIMIT_SHIFT	6
-#define		ENABLE_ITERM_SHIFT		3
-
-/* Control/Battery Voltage Register */
-#define REG_BATTERY_VOLTAGE			0x02
-#define		VOLTAGE_SHIFT			2
-
-/* Vender/Part/Revision Register */
-#define REG_PART_REVISION			0x03
-
-/* Battery Termination/Fast Charge Current Register */
-#define REG_BATTERY_CURRENT			0x04
-#define		BQ24156_CURRENT_SHIFT		3
-#define		BQ24153_CURRENT_SHIFT		4
-
-/* Special Charger Voltage/Enable Pin Status Register */
-#define REG_SPECIAL_CHARGER_VOLTAGE		0x05
-
-/* Safety Limit Register */
-#define REG_SAFETY_LIMIT			0x06
-#define		MAX_CURRENT_SHIFT		4
-
-#define BQ24153 (1 << 3)
-#define BQ24156 (1 << 6)
-#define BQ24158 (1 << 8)
-
-#define DRIVER_NAME			"bq2415x"
-static int timer_fault;
 
 struct charge_params {
 	unsigned long		currentmA;
@@ -91,6 +55,8 @@ struct bq2415x_device_info {
 	unsigned int		max_currentmA;
 	unsigned int		max_voltagemV;
 	unsigned int		term_currentmA;
+
+	int 			timer_fault;
 
 	bool			cfg_params;
 	bool			enable_iterm;
@@ -265,11 +231,11 @@ static void bq2415x_config_voltage_reg(struct bq2415x_device_info *di)
 
 static void bq2415x_config_current_reg(struct bq2415x_device_info *di)
 {
-	unsigned int currentmA = 0;
-	unsigned int term_currentmA = 0;
-	u8 Vichrg = 0;
+	unsigned int currentmA;
+	unsigned int term_currentmA;
+	u8 Vichrg;
 	u8 shift = 0;
-	u8 Viterm = 0;
+	u8 Viterm;
 
 	currentmA = di->currentmA;
 	term_currentmA = di->term_currentmA;
@@ -346,7 +312,7 @@ bq2415x_charger_update_status(struct bq2415x_device_info *di)
 {
 	u8 read_reg[7] = {0};
 
-	timer_fault = 0;
+	di->timer_fault = 0;
 	bq2415x_read_block(di, &read_reg[0], 0, 7);
 
 
@@ -354,14 +320,14 @@ bq2415x_charger_update_status(struct bq2415x_device_info *di)
 		dev_dbg(di->dev, "CHARGE DONE\n");
 
 	if ((read_reg[0] & 0x7) == 0x6)
-		timer_fault = 1;
+		di->timer_fault = 1;
 
 	if (read_reg[0] & 0x7) {
 		di->cfg_params = 1;
 		dev_err(di->dev, "CHARGER FAULT %x\n", read_reg[0]);
 	}
 
-	if ((timer_fault == 1) || (di->cfg_params == 1)) {
+	if ((di->timer_fault == 1) || (di->cfg_params == 1)) {
 		bq2415x_write_byte(di, di->control_reg, REG_CONTROL_REGISTER);
 		bq2415x_write_byte(di, di->voltage_reg, REG_BATTERY_VOLTAGE);
 		bq2415x_write_byte(di, di->current_reg, REG_BATTERY_CURRENT);
@@ -382,7 +348,7 @@ static void bq2415x_charger_work(struct work_struct *work)
 
 	bq2415x_charger_update_status(di);
 	schedule_delayed_work(&di->bq2415x_charger_work,
-						msecs_to_jiffies(30000));
+				msecs_to_jiffies(BQ2415x_WATCHDOG_TIMEOUT));
 }
 
 
@@ -391,15 +357,15 @@ static ssize_t bq2415x_set_enable_itermination(struct device *dev,
 				  const char *buf, size_t count)
 {
 	long val;
-	int status = count;
 	struct bq2415x_device_info *di = dev_get_drvdata(dev);
 
 	if ((strict_strtol(buf, 10, &val) < 0) || (val < 0) || (val > 1))
 		return -EINVAL;
+
 	di->enable_iterm = val;
 	bq2415x_config_control_reg(di);
 
-	return status;
+	return count;
 }
 
 static ssize_t bq2415x_show_enable_itermination(struct device *dev,
@@ -418,16 +384,16 @@ static ssize_t bq2415x_set_cin_limit(struct device *dev,
 				  const char *buf, size_t count)
 {
 	long val;
-	int status = count;
 	struct bq2415x_device_info *di = dev_get_drvdata(dev);
 
 	if ((strict_strtol(buf, 10, &val) < 0) || (val < 100)
 					|| (val > di->max_currentmA))
 		return -EINVAL;
+
 	di->cin_limit = val;
 	bq2415x_config_control_reg(di);
 
-	return status;
+	return count;
 }
 
 static ssize_t bq2415x_show_cin_limit(struct device *dev,
@@ -446,16 +412,16 @@ static ssize_t bq2415x_set_regulation_voltage(struct device *dev,
 				  const char *buf, size_t count)
 {
 	long val;
-	int status = count;
 	struct bq2415x_device_info *di = dev_get_drvdata(dev);
 
 	if ((strict_strtol(buf, 10, &val) < 0) || (val < 3500)
 					|| (val > di->max_voltagemV))
 		return -EINVAL;
+
 	di->voltagemV = val;
 	bq2415x_config_voltage_reg(di);
 
-	return status;
+	return count;
 }
 
 static ssize_t bq2415x_show_regulation_voltage(struct device *dev,
@@ -474,16 +440,16 @@ static ssize_t bq2415x_set_charge_current(struct device *dev,
 				  const char *buf, size_t count)
 {
 	long val;
-	int status = count;
 	struct bq2415x_device_info *di = dev_get_drvdata(dev);
 
 	if ((strict_strtol(buf, 10, &val) < 0) || (val < 550)
 					|| (val > di->max_currentmA))
 		return -EINVAL;
+
 	di->currentmA = val;
 	bq2415x_config_current_reg(di);
 
-	return status;
+	return count;
 }
 
 static ssize_t bq2415x_show_charge_current(struct device *dev,
@@ -502,15 +468,15 @@ static ssize_t bq2415x_set_termination_current(struct device *dev,
 				  const char *buf, size_t count)
 {
 	long val;
-	int status = count;
 	struct bq2415x_device_info *di = dev_get_drvdata(dev);
 
 	if ((strict_strtol(buf, 10, &val) < 0) || (val < 0) || (val > 350))
 		return -EINVAL;
+
 	di->term_currentmA = val;
 	bq2415x_config_current_reg(di);
 
-	return status;
+	return count;
 }
 
 static ssize_t bq2415x_show_termination_current(struct device *dev,

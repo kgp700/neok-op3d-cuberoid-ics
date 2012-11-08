@@ -20,6 +20,7 @@
 
 #include <asm/time.h>
 #include <asm/delay.h>
+#include <asm/mpc52xx.h>
 #include <asm/mpc52xx_psc.h>
 
 #include "mpc5200_dma.h"
@@ -100,19 +101,32 @@ static void psc_ac97_warm_reset(struct snd_ac97 *ac97)
 {
 	struct mpc52xx_psc __iomem *regs = psc_dma->psc_regs;
 
+	mutex_lock(&psc_dma->mutex);
+
 	out_be32(&regs->sicr, psc_dma->sicr | MPC52xx_PSC_SICR_AWR);
 	udelay(3);
 	out_be32(&regs->sicr, psc_dma->sicr);
+
+	mutex_unlock(&psc_dma->mutex);
 }
 
 static void psc_ac97_cold_reset(struct snd_ac97 *ac97)
 {
 	struct mpc52xx_psc __iomem *regs = psc_dma->psc_regs;
 
-	/* Do a cold reset */
-	out_8(&regs->op1, MPC52xx_PSC_OP_RES);
-	udelay(10);
-	out_8(&regs->op0, MPC52xx_PSC_OP_RES);
+	mutex_lock(&psc_dma->mutex);
+	dev_dbg(psc_dma->dev, "cold reset\n");
+
+	mpc5200_psc_ac97_gpio_reset(psc_dma->id);
+
+	/* Notify the PSC that a reset has occurred */
+	out_be32(&regs->sicr, psc_dma->sicr | MPC52xx_PSC_SICR_ACRB);
+
+	/* Re-enable RX and TX */
+	out_8(&regs->command, MPC52xx_PSC_TX_ENABLE | MPC52xx_PSC_RX_ENABLE);
+
+	mutex_unlock(&psc_dma->mutex);
+
 	msleep(1);
 	psc_ac97_warm_reset(ac97);
 }
@@ -258,8 +272,7 @@ static struct snd_soc_dai_driver psc_ac97_dai[] = {
  * - Probe/remove operations
  * - OF device match table
  */
-static int __devinit psc_ac97_of_probe(struct of_device *op,
-				      const struct of_device_id *match)
+static int __devinit psc_ac97_of_probe(struct platform_device *op)
 {
 	int rc;
 	struct snd_ac97 ac97;
@@ -288,7 +301,7 @@ static int __devinit psc_ac97_of_probe(struct of_device *op,
 	return 0;
 }
 
-static int __devexit psc_ac97_of_remove(struct of_device *op)
+static int __devexit psc_ac97_of_remove(struct platform_device *op)
 {
 	snd_soc_unregister_dais(&op->dev, ARRAY_SIZE(psc_ac97_dai));
 	return 0;
@@ -302,7 +315,7 @@ static struct of_device_id psc_ac97_match[] __devinitdata = {
 };
 MODULE_DEVICE_TABLE(of, psc_ac97_match);
 
-static struct of_platform_driver psc_ac97_driver = {
+static struct platform_driver psc_ac97_driver = {
 	.probe = psc_ac97_of_probe,
 	.remove = __devexit_p(psc_ac97_of_remove),
 	.driver = {
@@ -318,13 +331,13 @@ static struct of_platform_driver psc_ac97_driver = {
  */
 static int __init psc_ac97_init(void)
 {
-	return of_register_platform_driver(&psc_ac97_driver);
+	return platform_driver_register(&psc_ac97_driver);
 }
 module_init(psc_ac97_init);
 
 static void __exit psc_ac97_exit(void)
 {
-	of_unregister_platform_driver(&psc_ac97_driver);
+	platform_driver_unregister(&psc_ac97_driver);
 }
 module_exit(psc_ac97_exit);
 

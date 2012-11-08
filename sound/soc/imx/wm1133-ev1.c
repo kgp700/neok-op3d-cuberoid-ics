@@ -19,7 +19,6 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 
 #include <mach/audmux.h>
 
@@ -213,11 +212,12 @@ static struct snd_soc_jack_pin mic_jack_pins[] = {
 static int wm1133_ev1_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_dapm_context *dapm = &codec->dapm;
 
-	snd_soc_dapm_new_controls(codec, wm1133_ev1_widgets,
+	snd_soc_dapm_new_controls(dapm, wm1133_ev1_widgets,
 				  ARRAY_SIZE(wm1133_ev1_widgets));
 
-	snd_soc_dapm_add_routes(codec, wm1133_ev1_map,
+	snd_soc_dapm_add_routes(dapm, wm1133_ev1_map,
 				ARRAY_SIZE(wm1133_ev1_map));
 
 	/* Headphone jack detection */
@@ -234,7 +234,7 @@ static int wm1133_ev1_init(struct snd_soc_pcm_runtime *rtd)
 	wm8350_mic_jack_detect(codec, &mic_jack, SND_JACK_MICROPHONE,
 			       SND_JACK_BTN_0);
 
-	snd_soc_dapm_force_enable_pin(codec, "Mic Bias");
+	snd_soc_dapm_force_enable_pin(dapm, "Mic Bias");
 
 	return 0;
 }
@@ -243,9 +243,9 @@ static int wm1133_ev1_init(struct snd_soc_pcm_runtime *rtd)
 static struct snd_soc_dai_link wm1133_ev1_dai = {
 	.name = "WM1133-EV1",
 	.stream_name = "Audio",
-	.cpu_dai_name = "imx-ssi-dai.0",
+	.cpu_dai_name = "imx-ssi.0",
 	.codec_dai_name = "wm8350-hifi",
-	.platform_name = "imx-fiq-pcm-audio",
+	.platform_name = "imx-fiq-pcm-audio.0",
 	.codec_name = "wm8350-codec.0-0x1a",
 	.init = wm1133_ev1_init,
 	.ops = &wm1133_ev1_ops,

@@ -40,7 +40,6 @@
 #include <linux/time.h>
 #include <linux/timer.h>
 
-#include <plat/usb.h>
 #include <asm/unaligned.h>
 
 #include "musb_core.h"
@@ -50,9 +49,6 @@ static void musb_port_suspend(struct musb *musb, bool do_suspend)
 {
 	u8		power;
 	void __iomem	*mbase = musb->mregs;
-	struct device *dev = musb->controller;
-	struct musb_hdrc_platform_data *plat = dev->platform_data;
-	struct omap_musb_board_data *data = plat->board_data;
 
 	if (!is_host_active(musb))
 		return;
@@ -68,8 +64,6 @@ static void musb_port_suspend(struct musb *musb, bool do_suspend)
 
 		power &= ~MUSB_POWER_RESUME;
 		power |= MUSB_POWER_SUSPENDM;
-		if (data->interface_type == MUSB_INTERFACE_UTMI)
-			power |= MUSB_POWER_ENSUSPEND;
 		musb_writeb(mbase, MUSB_POWER, power);
 
 		/* Needed for OPT A tests */
@@ -80,7 +74,7 @@ static void musb_port_suspend(struct musb *musb, bool do_suspend)
 				break;
 		}
 
-		DBG(3, "Root port suspended, power %02x\n", power);
+		dev_dbg(musb->controller, "Root port suspended, power %02x\n", power);
 
 		musb->port1_status |= USB_PORT_STAT_SUSPEND;
 		switch (musb->xceiv->state) {
@@ -93,11 +87,6 @@ static void musb_port_suspend(struct musb *musb, bool do_suspend)
 					+ msecs_to_jiffies(
 						OTG_TIME_A_AIDL_BDIS));
 			musb_platform_try_idle(musb, 0);
-			/*
-			 * disable the phy clock when the device is supended.
-			 * this will allow the core retention
-			 */
-			otg_set_clk(musb->xceiv, 0);
 			break;
 #ifdef	CONFIG_USB_MUSB_OTG
 		case OTG_STATE_B_HOST:
@@ -108,18 +97,15 @@ static void musb_port_suspend(struct musb *musb, bool do_suspend)
 			break;
 #endif
 		default:
-			DBG(1, "bogus rh suspend? %s\n",
-				otg_state_string(musb));
+			dev_dbg(musb->controller, "bogus rh suspend? %s\n",
+				otg_state_string(musb->xceiv->state));
 		}
 	} else if (power & MUSB_POWER_SUSPENDM) {
 		power &= ~MUSB_POWER_SUSPENDM;
-		if (data->interface_type == MUSB_INTERFACE_UTMI)
-			power &= ~MUSB_POWER_ENSUSPEND;
 		power |= MUSB_POWER_RESUME;
 		musb_writeb(mbase, MUSB_POWER, power);
 
-		otg_set_clk(musb->xceiv, 1);
-		DBG(3, "Root port resuming, power %02x\n", power);
+		dev_dbg(musb->controller, "Root port resuming, power %02x\n", power);
 
 		/* later, GetPortStatus will stop RESUME signaling */
 		musb->port1_status |= MUSB_PORT_STAT_RESUME;
@@ -134,7 +120,7 @@ static void musb_port_reset(struct musb *musb, bool do_reset)
 
 #ifdef CONFIG_USB_MUSB_OTG
 	if (musb->xceiv->state == OTG_STATE_B_IDLE) {
-		DBG(2, "HNP: Returning from HNP; no hub reset from b_idle\n");
+		dev_dbg(musb->controller, "HNP: Returning from HNP; no hub reset from b_idle\n");
 		musb->port1_status &= ~USB_PORT_STAT_RESET;
 		return;
 	}
@@ -173,7 +159,7 @@ static void musb_port_reset(struct musb *musb, bool do_reset)
 		musb->port1_status &= ~USB_PORT_STAT_ENABLE;
 		musb->rh_timer = jiffies + msecs_to_jiffies(50);
 	} else {
-		DBG(4, "root port reset stopped\n");
+		dev_dbg(musb->controller, "root port reset stopped\n");
 		musb_writeb(mbase, MUSB_POWER,
 				power & ~MUSB_POWER_RESET);
 
@@ -181,7 +167,7 @@ static void musb_port_reset(struct musb *musb, bool do_reset)
 
 		power = musb_readb(mbase, MUSB_POWER);
 		if (power & MUSB_POWER_HSMODE) {
-			DBG(4, "high-speed device connected\n");
+			dev_dbg(musb->controller, "high-speed device connected\n");
 			musb->port1_status |= USB_PORT_STAT_HIGH_SPEED;
 		}
 
@@ -222,7 +208,8 @@ void musb_root_disconnect(struct musb *musb)
 		musb->xceiv->state = OTG_STATE_B_IDLE;
 		break;
 	default:
-		DBG(1, "host disconnect (%s)\n", otg_state_string(musb));
+		dev_dbg(musb->controller, "host disconnect (%s)\n",
+			otg_state_string(musb->xceiv->state));
 	}
 }
 
@@ -290,7 +277,7 @@ int musb_hub_control(
 			break;
 		case USB_PORT_FEAT_POWER:
 			if (!(is_otg_enabled(musb) && hcd->self.is_b_host))
-				musb_set_vbus(musb, 0);
+				musb_platform_set_vbus(musb, 0);
 			break;
 		case USB_PORT_FEAT_C_CONNECTION:
 		case USB_PORT_FEAT_C_ENABLE:
@@ -301,7 +288,7 @@ int musb_hub_control(
 		default:
 			goto error;
 		}
-		DBG(5, "clear feature %d\n", wValue);
+		dev_dbg(musb->controller, "clear feature %d\n", wValue);
 		musb->port1_status &= ~(1 << wValue);
 		break;
 	case GetHubDescriptor:
@@ -319,8 +306,8 @@ int musb_hub_control(
 		desc->bHubContrCurrent = 0;
 
 		/* workaround bogus struct definition */
-		desc->DeviceRemovable[0] = 0x02;	/* port 1 */
-		desc->DeviceRemovable[1] = 0xff;
+		desc->u.hs.DeviceRemovable[0] = 0x02;	/* port 1 */
+		desc->u.hs.DeviceRemovable[1] = 0xff;
 		}
 		break;
 	case GetHubStatus:
@@ -343,7 +330,7 @@ int musb_hub_control(
 
 			power = musb_readb(musb->mregs, MUSB_POWER);
 			power &= ~MUSB_POWER_RESUME;
-			DBG(4, "root port resume stopped, power %02x\n",
+			dev_dbg(musb->controller, "root port resume stopped, power %02x\n",
 					power);
 			musb_writeb(musb->mregs, MUSB_POWER, power);
 
@@ -366,7 +353,7 @@ int musb_hub_control(
 				(__le32 *) buf);
 
 		/* port change status is more interesting */
-		DBG(get_unaligned((u16 *)(buf+2)) ? 2 : 5, "port status %08x\n",
+		dev_dbg(musb->controller, "port status %08x\n",
 				musb->port1_status);
 		break;
 	case SetPortFeature:
@@ -437,7 +424,7 @@ int musb_hub_control(
 		default:
 			goto error;
 		}
-		DBG(5, "set feature %d\n", wValue);
+		dev_dbg(musb->controller, "set feature %d\n", wValue);
 		musb->port1_status |= 1 << wValue;
 		break;
 

@@ -1,1 +1,477 @@
-#include "abe_main.h"#include "abe_ref.h"#include "abe_dm_addr.h"#include "abe_dbg.h"#include <linux/kernel.h>#include <linux/delay.h>void abe_build_scheduler_table(){	u16 i, n;	u16 aUplinkMuxing[NBROUTE_UL];#define ABE_TASK_ID(ID) (D_tasksList_ADDR + sizeof(ABE_STask)*(ID))	memset(abe->MultiFrame, 0, sizeof(abe->MultiFrame));#define TASK_IO_VX_DL_SLT 0#define TASK_IO_VX_DL_IDX 2	abe->MultiFrame[0][2] = 0;#define TASK_ASRC_VX_DL_SLT 0#define TASK_ASRC_VX_DL_IDX 3	abe->MultiFrame[0][3] = ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_DL_8);#define TASK_VX_DL_SLT 1#define TASK_VX_DL_IDX 3	abe->MultiFrame[1][3] = ABE_TASK_ID(C_ABE_FW_TASK_VX_DL_8_48_FIR);#define TASK_DL2Mixer_SLT 1#define TASK_DL2Mixer_IDX 6	abe->MultiFrame[1][6] = ABE_TASK_ID(C_ABE_FW_TASK_DL2Mixer);#define TASK_IO_VIB_DL_SLT 1#define TASK_IO_VIB_DL_IDX 7	abe->MultiFrame[1][7] = 0;#define TASK_DL1Mixer_SLT 2#define TASK_DL1Mixer_IDX 0	abe->MultiFrame[2][0] = ABE_TASK_ID(C_ABE_FW_TASK_DL1Mixer);	abe->MultiFrame[2][1] = ABE_TASK_ID(C_ABE_FW_TASK_SDTMixer);#define TASK_IO_DMIC_HALF1_SLT 2#define TASK_IO_DMIC_HALF1_IDX 5	abe->MultiFrame[2][5] = 0;	abe->MultiFrame[3][0] = ABE_TASK_ID(C_ABE_FW_TASK_DL1_GAIN);	abe->MultiFrame[3][6] = ABE_TASK_ID(C_ABE_FW_TASK_DL2_GAIN);	abe->MultiFrame[3][7] = ABE_TASK_ID(C_ABE_FW_TASK_DL2_EQ);	abe->MultiFrame[4][0] = ABE_TASK_ID(C_ABE_FW_TASK_DL1_EQ);	abe->MultiFrame[4][2] = ABE_TASK_ID(C_ABE_FW_TASK_VXRECMixer);	abe->MultiFrame[4][3] = ABE_TASK_ID(C_ABE_FW_TASK_VXREC_SPLIT);	abe->MultiFrame[4][6] = ABE_TASK_ID(C_ABE_FW_TASK_VIBRA1);	abe->MultiFrame[4][7] = ABE_TASK_ID(C_ABE_FW_TASK_VIBRA2);	abe->MultiFrame[5][0] = 0;	abe->MultiFrame[5][1] = ABE_TASK_ID(C_ABE_FW_TASK_EARP_48_96_LP);#define TASK_IO_PDM_UL_SLT 5#define TASK_IO_PDM_UL_IDX 2	abe->MultiFrame[5][2] = 0;	abe->MultiFrame[5][7] = ABE_TASK_ID(C_ABE_FW_TASK_VIBRA_SPLIT);	abe->MultiFrame[6][0] = ABE_TASK_ID(C_ABE_FW_TASK_EARP_48_96_LP);	abe->MultiFrame[6][5] = ABE_TASK_ID(C_ABE_FW_TASK_EchoMixer);#define TASK_IO_PDM_DL_HALF1_SLT 7#define TASK_IO_PDM_DL_HALF1_IDX 0	abe->MultiFrame[7][0] = 0;	abe->MultiFrame[7][2] = ABE_TASK_ID(C_ABE_FW_TASK_BT_UL_SPLIT);	abe->MultiFrame[7][3] = ABE_TASK_ID(C_ABE_FW_TASK_DBG_SYNC);	abe->MultiFrame[7][5] = ABE_TASK_ID(C_ABE_FW_TASK_ECHO_REF_SPLIT);	abe->MultiFrame[8][2] = ABE_TASK_ID(C_ABE_FW_TASK_DMIC1_96_48_LP);	abe->MultiFrame[8][4] = ABE_TASK_ID(C_ABE_FW_TASK_DMIC1_SPLIT);	abe->MultiFrame[9][2] = ABE_TASK_ID(C_ABE_FW_TASK_DMIC2_96_48_LP);	abe->MultiFrame[9][4] = ABE_TASK_ID(C_ABE_FW_TASK_DMIC2_SPLIT);	abe->MultiFrame[9][6] = 0;	abe->MultiFrame[9][7] = ABE_TASK_ID(C_ABE_FW_TASK_IHF_48_96_LP);	abe->MultiFrame[10][2] = ABE_TASK_ID(C_ABE_FW_TASK_DMIC3_96_48_LP);	abe->MultiFrame[10][4] = ABE_TASK_ID(C_ABE_FW_TASK_DMIC3_SPLIT);	abe->MultiFrame[10][7] = ABE_TASK_ID(C_ABE_FW_TASK_IHF_48_96_LP);	abe->MultiFrame[11][2] = ABE_TASK_ID(C_ABE_FW_TASK_AMIC_96_48_LP);	abe->MultiFrame[11][4] = ABE_TASK_ID(C_ABE_FW_TASK_AMIC_SPLIT);	abe->MultiFrame[11][7] = ABE_TASK_ID(C_ABE_FW_TASK_VIBRA_PACK);	abe->MultiFrame[12][3] = ABE_TASK_ID(C_ABE_FW_TASK_VX_UL_ROUTING);	abe->MultiFrame[12][4] = ABE_TASK_ID(C_ABE_FW_TASK_ULMixer);#define TASK_VX_UL_SLT 12#define TASK_VX_UL_IDX 5	abe->MultiFrame[12][5] = ABE_TASK_ID(C_ABE_FW_TASK_VX_UL_48_8);	abe->MultiFrame[13][2] = ABE_TASK_ID(C_ABE_FW_TASK_MM_UL2_ROUTING);	abe->MultiFrame[13][3] = ABE_TASK_ID(C_ABE_FW_TASK_SideTone);#define TASK_IO_BT_VX_DL_SLT 13#define TASK_IO_BT_VX_DL_IDX 5	abe->MultiFrame[13][5] = 0;#define TASK_IO_DMIC_HALF2_SLT 14#define TASK_IO_DMIC_HALF2_IDX 3	abe->MultiFrame[14][3] = 0;#define TASK_BT_DL_48_8_SLT 14#define TASK_BT_DL_48_8_IDX 4	abe->MultiFrame[14][4] = ABE_TASK_ID(C_ABE_FW_TASK_BT_DL_48_8);#define TASK_IO_MM_EXT_OUT_SLT 15#define TASK_IO_MM_EXT_OUT_IDX 0	abe->MultiFrame[15][0] = 0;#define TASK_IO_BT_VX_UL_SLT 15#define TASK_IO_BT_VX_UL_IDX 3	abe->MultiFrame[15][3] = 0;#define TASK_ASRC_BT_UL_SLT 15#define TASK_ASRC_BT_UL_IDX 6	abe->MultiFrame[15][6] = ABE_TASK_ID(C_ABE_FW_TASK_ASRC_BT_UL_8);#define TASK_ASRC_VX_UL_SLT 16#define TASK_ASRC_VX_UL_IDX 2	abe->MultiFrame[16][2] = ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_UL_8);#define TASK_IO_VX_UL_SLT 16#define TASK_IO_VX_UL_IDX 3	abe->MultiFrame[16][3] = 0;#define TASK_BT_UL_8_48_SLT 17#define TASK_BT_UL_8_48_IDX 2	abe->MultiFrame[17][2] = ABE_TASK_ID(C_ABE_FW_TASK_BT_UL_8_48);#define TASK_IO_MM_UL2_SLT 17#define TASK_IO_MM_UL2_IDX 3	abe->MultiFrame[17][3] = 0;#define TASK_IO_MM_DL_SLT 18#define TASK_IO_MM_DL_IDX 0	abe->MultiFrame[18][0] = 0;#define TASK_ASRC_BT_DL_SLT 18#define TASK_ASRC_BT_DL_IDX 6	abe->MultiFrame[18][6] = ABE_TASK_ID(C_ABE_FW_TASK_ASRC_BT_DL_8);#define TASK_IO_PDM_DL_HALF2_SLT 19#define TASK_IO_PDM_DL_HALF2_IDX 0	abe->MultiFrame[19][0] = 0;	#define TASK_IO_MM_UL_SLT 19#define TASK_IO_MM_UL_IDX 6	abe->MultiFrame[19][6] = 0;#define TASK_IO_TONES_DL_SLT 20#define TASK_IO_TONES_DL_IDX 0	abe->MultiFrame[20][0] = 0;	abe->MultiFrame[20][6] = ABE_TASK_ID(C_ABE_FW_TASK_ASRC_MM_EXT_IN);	abe->MultiFrame[21][1] = ABE_TASK_ID(C_ABE_FW_TASK_DEBUGTRACE_VX_ASRCs);#define TASK_IO_MM_EXT_IN_SLT 21#define TASK_IO_MM_EXT_IN_IDX 3	abe->MultiFrame[21][3] = 0;		abe->MultiFrame[22][0] = ABE_TASK_ID(C_ABE_FW_TASK_DEBUG_IRQFIFO);	abe->MultiFrame[22][1] = ABE_TASK_ID(C_ABE_FW_TASK_INIT_FW_MEMORY);	abe->MultiFrame[22][2] = 0;	abe->MultiFrame[22][4] = ABE_TASK_ID(C_ABE_FW_TASK_MM_EXT_IN_SPLIT);	abe->MultiFrame[23][0] = ABE_TASK_ID(C_ABE_FW_TASK_GAIN_UPDATE);	abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_DMEM, D_multiFrame_ADDR,		       (u32 *) abe->MultiFrame, sizeof(abe->MultiFrame));	n = (D_aUplinkRouting_sizeof) >> 1;	for (i = 0; i < n; i++)		aUplinkMuxing[i] = ZERO_labelID;	abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_DMEM, D_aUplinkRouting_ADDR,		       (u32 *) aUplinkMuxing, sizeof(aUplinkMuxing));}void abe_init_atc(u32 id){	u8 iter;	s32 datasize;	abe_satcdescriptor_aess atc_desc;#define JITTER_MARGIN 4		memset(&atc_desc, 0, sizeof(atc_desc));	datasize = abe_dma_port_iter_factor(&((abe_port[id]).format));	iter = (u8) abe_dma_port_iteration(&((abe_port[id]).format));	if (abe_port[id].protocol.direction == ABE_ATC_DIRECTION_IN)		if (iter + 2 * datasize > 126)			atc_desc.wrpt = (iter >> 1) +				((JITTER_MARGIN-1) * datasize);		else			atc_desc.wrpt = iter + ((JITTER_MARGIN-1) * datasize);	else		atc_desc.wrpt = 0 + ((JITTER_MARGIN+1) * datasize);	switch ((abe_port[id]).protocol.protocol_switch) {	case SLIMBUS_PORT_PROT:		atc_desc.cbdir = (abe_port[id]).protocol.direction;		atc_desc.cbsize =			(abe_port[id]).protocol.p.prot_slimbus.buf_size;		atc_desc.badd =			((abe_port[id]).protocol.p.prot_slimbus.buf_addr1) >> 4;		atc_desc.iter = (abe_port[id]).protocol.p.prot_slimbus.iter;		atc_desc.srcid =			abe_atc_srcid[(abe_port[id]).protocol.p.prot_slimbus.				      desc_addr1 >> 3];		abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_DMEM,			       (abe_port[id]).protocol.p.prot_slimbus.			       desc_addr1, (u32 *) &atc_desc, sizeof(atc_desc));		atc_desc.badd =			(abe_port[id]).protocol.p.prot_slimbus.buf_addr2;		atc_desc.srcid =			abe_atc_srcid[(abe_port[id]).protocol.p.prot_slimbus.				      desc_addr2 >> 3];		abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_DMEM,			       (abe_port[id]).protocol.p.prot_slimbus.			       desc_addr2, (u32 *) &atc_desc, sizeof(atc_desc));		break;	case SERIAL_PORT_PROT:		atc_desc.cbdir = (abe_port[id]).protocol.direction;		atc_desc.cbsize =			(abe_port[id]).protocol.p.prot_serial.buf_size;		atc_desc.badd =			((abe_port[id]).protocol.p.prot_serial.buf_addr) >> 4;		atc_desc.iter = (abe_port[id]).protocol.p.prot_serial.iter;		atc_desc.srcid =			abe_atc_srcid[(abe_port[id]).protocol.p.prot_serial.				      desc_addr >> 3];		atc_desc.destid =			abe_atc_dstid[(abe_port[id]).protocol.p.prot_serial.				      desc_addr >> 3];		abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_DMEM,			       (abe_port[id]).protocol.p.prot_serial.desc_addr,			       (u32 *) &atc_desc, sizeof(atc_desc));		break;	case DMIC_PORT_PROT:		atc_desc.cbdir = ABE_ATC_DIRECTION_IN;		atc_desc.cbsize = (abe_port[id]).protocol.p.prot_dmic.buf_size;		atc_desc.badd =			((abe_port[id]).protocol.p.prot_dmic.buf_addr) >> 4;		atc_desc.iter = DMIC_ITER;		atc_desc.srcid = abe_atc_srcid[ABE_ATC_DMIC_DMA_REQ];		abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_DMEM,			       (ABE_ATC_DMIC_DMA_REQ*ATC_SIZE),			       (u32 *) &atc_desc, sizeof(atc_desc));		break;	case MCPDMDL_PORT_PROT:		atc_desc.cbdir = ABE_ATC_DIRECTION_OUT;		atc_desc.cbsize =			(abe_port[id]).protocol.p.prot_mcpdmdl.buf_size;		atc_desc.badd =			((abe_port[id]).protocol.p.prot_mcpdmdl.buf_addr) >> 4;		atc_desc.iter = MCPDM_DL_ITER;		atc_desc.destid = abe_atc_dstid[ABE_ATC_MCPDMDL_DMA_REQ];		abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_DMEM,			       (ABE_ATC_MCPDMDL_DMA_REQ*ATC_SIZE),			       (u32 *) &atc_desc, sizeof(atc_desc));		break;	case MCPDMUL_PORT_PROT:		atc_desc.cbdir = ABE_ATC_DIRECTION_IN;		atc_desc.cbsize =			(abe_port[id]).protocol.p.prot_mcpdmul.buf_size;		atc_desc.badd =			((abe_port[id]).protocol.p.prot_mcpdmul.buf_addr) >> 4;		atc_desc.iter = MCPDM_UL_ITER;		atc_desc.srcid = abe_atc_srcid[ABE_ATC_MCPDMUL_DMA_REQ];		abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_DMEM,			       (ABE_ATC_MCPDMUL_DMA_REQ*ATC_SIZE),			       (u32 *) &atc_desc, sizeof(atc_desc));		break;	case PINGPONG_PORT_PROT:				break;	case DMAREQ_PORT_PROT:		atc_desc.cbdir = (abe_port[id]).protocol.direction;		atc_desc.cbsize =			(abe_port[id]).protocol.p.prot_dmareq.buf_size;		atc_desc.badd =			((abe_port[id]).protocol.p.prot_dmareq.buf_addr) >> 4;		atc_desc.iter = 1;				if (abe_port[id].protocol.direction == ABE_ATC_DIRECTION_IN) {			atc_desc.srcid = abe_atc_srcid				[(abe_port[id]).protocol.p.prot_dmareq.				 desc_addr >> 3];		} else {			atc_desc.destid = abe_atc_dstid				[(abe_port[id]).protocol.p.prot_dmareq.				 desc_addr >> 3];		}		abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_DMEM,			       (abe_port[id]).protocol.p.prot_dmareq.desc_addr,			       (u32 *) &atc_desc, sizeof(atc_desc));		break;	}}void abe_init_dma_t(u32 id, abe_port_protocol_t *prot){	abe_dma_t_offset dma;	u32 idx;	dma.data = 0;	dma.iter = 0;	switch (prot->protocol_switch) {	case PINGPONG_PORT_PROT:		for (idx = 0; idx < 32; idx++) {			if (((prot->p).prot_pingpong.irq_data) ==			    (u32) (1 << idx))				break;		}		(prot->p).prot_dmareq.desc_addr =			((CBPr_DMA_RTX0 + idx)*ATC_SIZE);				dma.data = (prot->p).prot_pingpong.buf_addr >> 2;		dma.iter = (prot->p).prot_pingpong.buf_size >> 2;		break;	case DMAREQ_PORT_PROT:		for (idx = 0; idx < 32; idx++) {			if (((prot->p).prot_dmareq.dma_data) ==			    (u32) (1 << idx))				break;		}		dma.data = (CIRCULAR_BUFFER_PERIPHERAL_R__0 + (idx << 2));		dma.iter = (prot->p).prot_dmareq.iter;		(prot->p).prot_dmareq.desc_addr =			((CBPr_DMA_RTX0 + idx)*ATC_SIZE);		break;	case SLIMBUS_PORT_PROT:	case SERIAL_PORT_PROT:	case DMIC_PORT_PROT:	case MCPDMDL_PORT_PROT:	case MCPDMUL_PORT_PROT:	default:		break;	}		abe_port[id].dma = dma;}void abe_disable_enable_dma_request(u32 id, u32 on_off){	u8 desc_third_word[4], irq_dmareq_field;	u32 sio_desc_address;	u32 struct_offset;	ABE_SIODescriptor sio_desc;	ABE_SPingPongDescriptor desc_pp;	if (abe_port[id].protocol.protocol_switch == PINGPONG_PORT_PROT) {		irq_dmareq_field =			(u8) (on_off *			      abe_port[id].protocol.p.prot_pingpong.irq_data);		sio_desc_address = D_PingPongDesc_ADDR;		struct_offset = (u32) &(desc_pp.data_size) - (u32) &(desc_pp);		abe_block_copy(COPY_FROM_ABE_TO_HOST, ABE_DMEM,			       sio_desc_address + struct_offset,			       (u32 *) desc_third_word, 4);		desc_third_word[2] = irq_dmareq_field;		abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_DMEM,			       sio_desc_address + struct_offset,			       (u32 *) desc_third_word, 4);	} else {				sio_desc_address =			dmem_port_descriptors +			(id * sizeof(ABE_SIODescriptor));		abe_block_copy(COPY_FROM_ABE_TO_HOST, ABE_DMEM,			sio_desc_address, (u32 *) &sio_desc,			sizeof(sio_desc));		if (on_off) {			if (abe_port[id].protocol.protocol_switch != SERIAL_PORT_PROT)			sio_desc.atc_irq_data =				(u8) abe_port[id].protocol.p.prot_dmareq.				dma_data;			sio_desc.on_off = 0x80;		} else {			sio_desc.atc_irq_data = 0;			sio_desc.on_off = 0;		}		abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_DMEM,			sio_desc_address, (u32 *) &sio_desc,			sizeof(sio_desc));	}}void abe_enable_dma_request(u32 id){	abe_disable_enable_dma_request(id, 1);}void abe_disable_dma_request(u32 id){	abe_disable_enable_dma_request(id, 0);}void abe_enable_atc(u32 id){	abe_satcdescriptor_aess atc_desc;	abe_block_copy(COPY_FROM_ABE_TO_HOST, ABE_DMEM,		       (abe_port[id]).protocol.p.prot_dmareq.desc_addr,		       (u32 *) &atc_desc, sizeof(atc_desc));	atc_desc.desen = 1;	abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_DMEM,		       (abe_port[id]).protocol.p.prot_dmareq.desc_addr,		       (u32 *) &atc_desc, sizeof(atc_desc));}void abe_disable_atc(u32 id){	abe_satcdescriptor_aess atc_desc;	abe_block_copy(COPY_FROM_ABE_TO_HOST, ABE_DMEM,		       (abe_port[id]).protocol.p.prot_dmareq.desc_addr,		       (u32 *) &atc_desc, sizeof(atc_desc));	atc_desc.desen = 0;	abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_DMEM,		       (abe_port[id]).protocol.p.prot_dmareq.desc_addr,		       (u32 *) &atc_desc, sizeof(atc_desc));}void abe_init_io_tasks(u32 id, abe_data_format_t *format,		       abe_port_protocol_t *prot){	u32 x_io, direction, iter_samples, smem1, smem2, smem3, io_sub_id,		io_flag;	u32 copy_func_index, before_func_index, after_func_index;	u32 dmareq_addr, dmareq_field;	u32 sio_desc_address, datasize, iter, nsamp, datasize2, dOppMode32;	u32 atc_ptr_saved, atc_ptr_saved2, copy_func_index1;	u32 copy_func_index2, atc_desc_address1, atc_desc_address2;	ABE_SPingPongDescriptor desc_pp;	ABE_SIODescriptor sio_desc;	if (prot->protocol_switch == PINGPONG_PORT_PROT) {				if (MM_DL_PORT != id) {			abe->dbg_param |= ERR_API;			abe_dbg_error_log(ABE_PARAMETER_ERROR);			return;		}		smem1 = smem_mm_dl;		copy_func_index = (u8) abe_dma_port_copy_subroutine_id(id);		dmareq_addr = abe_port[id].protocol.p.prot_pingpong.irq_addr;		dmareq_field = abe_port[id].protocol.p.prot_pingpong.irq_data;		datasize = abe_dma_port_iter_factor(format);				iter = abe_dma_port_iteration(format);		iter_samples = (iter / datasize);		desc_pp.drift_ASRC = 0;				desc_pp.drift_io = 0;		desc_pp.hw_ctrl_addr = (u16) dmareq_addr;		desc_pp.copy_func_index = (u8) copy_func_index;		desc_pp.smem_addr = (u8) smem1;				desc_pp.atc_irq_data = (u8) dmareq_field;				desc_pp.x_io = (u8) iter_samples;		desc_pp.data_size = (u8) datasize;				desc_pp.workbuff_BaseAddr =			(u16) (abe_base_address_pingpong[1]);				desc_pp.workbuff_Samples = 0;		desc_pp.nextbuff0_BaseAddr =			(u16) (abe_base_address_pingpong[0]);		desc_pp.nextbuff1_BaseAddr =			(u16) (abe_base_address_pingpong[1]);		if (dmareq_addr == ABE_DMASTATUS_RAW) {			desc_pp.nextbuff0_Samples =				(u16) ((abe_size_pingpong >> 2) / datasize);			desc_pp.nextbuff1_Samples =				(u16) ((abe_size_pingpong >> 2) / datasize);		} else {			desc_pp.nextbuff0_Samples = 0;			desc_pp.nextbuff1_Samples = 0;		}				desc_pp.counter = 0;		sio_desc_address = D_PingPongDesc_ADDR;		abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_DMEM,			       sio_desc_address, (u32 *) &desc_pp,			       sizeof(desc_pp));	} else {		io_sub_id = dmareq_addr = ABE_DMASTATUS_RAW;		dmareq_field = 0;		atc_desc_address1 = atc_desc_address2 = 0;		io_flag = 0xFF;		datasize2 = datasize = abe_dma_port_iter_factor(format);		x_io = (u8) abe_dma_port_iteration(format);		nsamp = (x_io / datasize);		atc_ptr_saved2 = atc_ptr_saved = DMIC_ATC_PTR_labelID + id;		smem1 = abe_port[id].smem_buffer1;		smem3 = smem2 = abe_port[id].smem_buffer2;		copy_func_index1 = (u8) abe_dma_port_copy_subroutine_id(id);		before_func_index = after_func_index =			copy_func_index2 = NULL_COPY_CFPID;		switch (prot->protocol_switch) {		case DMIC_PORT_PROT:						x_io = x_io >> 1;			nsamp = nsamp >> 1;			atc_desc_address1 = (ABE_ATC_DMIC_DMA_REQ*ATC_SIZE);			io_sub_id = IO_IP_CFPID;			break;		case MCPDMDL_PORT_PROT:						x_io = x_io >> 1;			atc_desc_address1 =				(ABE_ATC_MCPDMDL_DMA_REQ*ATC_SIZE);			io_sub_id = IO_IP_CFPID;			break;		case MCPDMUL_PORT_PROT:			atc_desc_address1 =				(ABE_ATC_MCPDMUL_DMA_REQ*ATC_SIZE);			io_sub_id = IO_IP_CFPID;			break;		case SLIMBUS_PORT_PROT:			atc_desc_address1 =				abe_port[id].protocol.p.prot_slimbus.desc_addr1;			atc_desc_address2 =				abe_port[id].protocol.p.prot_slimbus.desc_addr2;			copy_func_index2 = NULL_COPY_CFPID;			io_sub_id = IO_IP_CFPID;			break;		case SERIAL_PORT_PROT:				atc_desc_address1 =				(s16) abe_port[id].protocol.p.prot_serial.				desc_addr;			io_sub_id = IO_IP_CFPID;			break;		case DMAREQ_PORT_PROT:				dmareq_addr =				abe_port[id].protocol.p.prot_dmareq.dma_addr;			dmareq_field = 0;			atc_desc_address1 =				abe_port[id].protocol.p.prot_dmareq.desc_addr;			io_sub_id = IO_IP_CFPID;			break;		}		if (MM_UL_PORT == id) {			copy_func_index1 = COPY_MM_UL_CFPID;			before_func_index = ROUTE_MM_UL_CFPID;			abe->MultiFrame[TASK_IO_MM_UL_SLT][TASK_IO_MM_UL_IDX] =					ABE_TASK_ID(C_ABE_FW_TASK_IO_MM_UL);		}		if (MM_UL2_PORT == id) {			abe->MultiFrame[TASK_IO_MM_UL2_SLT][TASK_IO_MM_UL2_IDX] =					ABE_TASK_ID(C_ABE_FW_TASK_IO_MM_UL2);		}				if (VX_DL_PORT == id) {			abe->MultiFrame[TASK_IO_VX_DL_SLT][TASK_IO_VX_DL_IDX] =					ABE_TASK_ID(C_ABE_FW_TASK_IO_VX_DL);			if (abe_port[id].format.f == 8000) {				abe->MultiFrame[TASK_VX_DL_SLT][TASK_VX_DL_IDX] =					ABE_TASK_ID(C_ABE_FW_TASK_VX_DL_8_48_FIR);								smem1 = IO_VX_DL_ASRC_labelID;				if ((abe_port[VX_DL_PORT].status ==						OMAP_ABE_PORT_ACTIVITY_IDLE) &&						(abe_port[VX_UL_PORT].status ==						OMAP_ABE_PORT_ACTIVITY_IDLE)) {						abe->MultiFrame[TASK_ASRC_VX_DL_SLT]							[TASK_ASRC_VX_DL_IDX] =							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_DL_8);						abe->MultiFrame[TASK_ASRC_VX_UL_SLT]							[TASK_ASRC_VX_UL_IDX] =							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_UL_8_SIB);				} else {									}			} else {				abe->MultiFrame[TASK_VX_DL_SLT][TASK_VX_DL_IDX] =					ABE_TASK_ID(C_ABE_FW_TASK_VX_DL_16_48);								smem1 = IO_VX_DL_ASRC_labelID;				if ((abe_port[VX_DL_PORT].status ==						OMAP_ABE_PORT_ACTIVITY_IDLE) &&						(abe_port[VX_UL_PORT].status ==						OMAP_ABE_PORT_ACTIVITY_IDLE)) {						abe->MultiFrame[TASK_ASRC_VX_DL_SLT]							[TASK_ASRC_VX_DL_IDX] =							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_DL_16);						abe->MultiFrame[TASK_ASRC_VX_UL_SLT]							[TASK_ASRC_VX_UL_IDX] =							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_UL_16_SIB);				} else {									}			}		}				if (VX_UL_PORT == id) {			abe->MultiFrame[TASK_IO_VX_UL_SLT][TASK_IO_VX_UL_IDX] =					ABE_TASK_ID(C_ABE_FW_TASK_IO_VX_UL);			if (abe_port[id].format.f == 8000) {				abe->MultiFrame[TASK_VX_UL_SLT][TASK_VX_UL_IDX] =					ABE_TASK_ID(C_ABE_FW_TASK_VX_UL_48_8);				smem1 = Voice_8k_UL_labelID;				if ((abe_port[VX_DL_PORT].status ==						OMAP_ABE_PORT_ACTIVITY_IDLE) &&						(abe_port[VX_UL_PORT].status ==						OMAP_ABE_PORT_ACTIVITY_IDLE)) {						abe->MultiFrame[TASK_ASRC_VX_DL_SLT]							[TASK_ASRC_VX_DL_IDX] =							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_DL_8_SIB);						abe->MultiFrame[TASK_ASRC_VX_UL_SLT]							[TASK_ASRC_VX_UL_IDX] =							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_UL_8);				} else {									}			} else {				abe->MultiFrame[TASK_VX_UL_SLT][TASK_VX_UL_IDX] =					ABE_TASK_ID(C_ABE_FW_TASK_VX_UL_48_16);				smem1 = Voice_16k_UL_labelID;				if ((abe_port[VX_DL_PORT].status ==						OMAP_ABE_PORT_ACTIVITY_IDLE) &&						(abe_port[VX_UL_PORT].status ==						OMAP_ABE_PORT_ACTIVITY_IDLE)) {						abe->MultiFrame[TASK_ASRC_VX_DL_SLT]							[TASK_ASRC_VX_DL_IDX] =							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_DL_16_SIB);						abe->MultiFrame[TASK_ASRC_VX_UL_SLT]							[TASK_ASRC_VX_UL_IDX] =							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_UL_16);				} else {									}			}		}				if (BT_VX_DL_PORT == id) {			abe->MultiFrame[TASK_IO_BT_VX_DL_SLT][TASK_IO_BT_VX_DL_IDX] =						ABE_TASK_ID(C_ABE_FW_TASK_IO_BT_VX_DL);			abe_block_copy(COPY_FROM_ABE_TO_HOST, ABE_DMEM,				       D_maxTaskBytesInSlot_ADDR, &dOppMode32,				       sizeof(u32));			if (abe_port[id].format.f == 8000) {				if (dOppMode32 == DOPPMODE32_OPP100) {					abe->MultiFrame[TASK_BT_DL_48_8_SLT]						[TASK_BT_DL_48_8_IDX] =						ABE_TASK_ID(C_ABE_FW_TASK_BT_DL_48_8_OPP100);					smem1 = BT_DL_8k_opp100_labelID;				} else {					abe->MultiFrame[TASK_BT_DL_48_8_SLT]						[TASK_BT_DL_48_8_IDX] =						ABE_TASK_ID(C_ABE_FW_TASK_BT_DL_48_8);					smem1 = BT_DL_8k_labelID;				}				if ((abe_port[BT_VX_DL_PORT].status ==						OMAP_ABE_PORT_ACTIVITY_IDLE) &&						(abe_port[BT_VX_UL_PORT].status ==						OMAP_ABE_PORT_ACTIVITY_IDLE)) {						abe->MultiFrame[TASK_ASRC_BT_DL_SLT]							[TASK_ASRC_BT_DL_IDX] =							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_BT_DL_8);						abe->MultiFrame[TASK_ASRC_BT_UL_SLT]							[TASK_ASRC_BT_UL_IDX] =							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_BT_UL_8_SIB);				} else {									}			} else {				if (dOppMode32 == DOPPMODE32_OPP100) {					abe->MultiFrame[TASK_BT_DL_48_8_SLT]						[TASK_BT_DL_48_8_IDX] =						ABE_TASK_ID(C_ABE_FW_TASK_BT_DL_48_16_OPP100);					smem1 = BT_DL_16k_opp100_labelID;				} else {					abe->MultiFrame[TASK_BT_DL_48_8_SLT]						[TASK_BT_DL_48_8_IDX] =						ABE_TASK_ID(C_ABE_FW_TASK_BT_DL_48_16);					smem1 = BT_DL_16k_labelID;				}				if ((abe_port[BT_VX_DL_PORT].status ==						OMAP_ABE_PORT_ACTIVITY_IDLE) &&						(abe_port[BT_VX_UL_PORT].status ==						OMAP_ABE_PORT_ACTIVITY_IDLE)) {						abe->MultiFrame[TASK_ASRC_BT_DL_SLT]							[TASK_ASRC_BT_DL_IDX] =							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_BT_DL_16);						abe->MultiFrame[TASK_ASRC_BT_UL_SLT]							[TASK_ASRC_BT_UL_IDX] =							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_BT_UL_16_SIB);				} else {									}			}		}				if (BT_VX_UL_PORT == id) {			abe->MultiFrame[TASK_IO_BT_VX_UL_SLT][TASK_IO_BT_VX_UL_IDX] =					ABE_TASK_ID(C_ABE_FW_TASK_IO_BT_VX_UL);						abe_block_copy(COPY_FROM_ABE_TO_HOST, ABE_DMEM,				       D_maxTaskBytesInSlot_ADDR, &dOppMode32,				       sizeof(u32));			if (abe_port[id].format.f == 8000) {				abe->MultiFrame[TASK_BT_UL_8_48_SLT]					[TASK_BT_UL_8_48_IDX] =					ABE_TASK_ID(C_ABE_FW_TASK_BT_UL_8_48);				if (dOppMode32 == DOPPMODE32_OPP100)										smem1 = smem_bt_vx_ul_opp100;				else										smem1 = BT_UL_8k_labelID;				if ((abe_port[BT_VX_UL_PORT].status ==						OMAP_ABE_PORT_ACTIVITY_IDLE) &&						(abe_port[BT_VX_DL_PORT].status ==						OMAP_ABE_PORT_ACTIVITY_IDLE)) {						abe->MultiFrame[TASK_ASRC_BT_UL_SLT]							[TASK_ASRC_BT_UL_IDX] =							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_BT_UL_8);						abe->MultiFrame[TASK_ASRC_BT_DL_SLT]							[TASK_ASRC_BT_DL_IDX] =							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_BT_DL_8_SIB);				} else {									}			} else {				abe->MultiFrame[TASK_BT_UL_8_48_SLT]					[TASK_BT_UL_8_48_IDX] =					ABE_TASK_ID(C_ABE_FW_TASK_BT_UL_16_48);				if (dOppMode32 == DOPPMODE32_OPP100)										smem1 = smem_bt_vx_ul_opp100;				else										smem1 = BT_UL_16k_labelID;				if ((abe_port[BT_VX_UL_PORT].status ==						OMAP_ABE_PORT_ACTIVITY_IDLE) &&						(abe_port[BT_VX_DL_PORT].status ==						OMAP_ABE_PORT_ACTIVITY_IDLE)) {						abe->MultiFrame[TASK_ASRC_BT_UL_SLT]							[TASK_ASRC_BT_UL_IDX] =							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_BT_UL_16);						abe->MultiFrame[TASK_ASRC_BT_DL_SLT]							[TASK_ASRC_BT_DL_IDX] =							ABE_TASK_ID(C_ABE_FW_TASK_ASRC_BT_DL_16_SIB);				} else {									}			}		}		if (MM_DL_PORT == id) {						abe->MultiFrame[TASK_IO_MM_DL_SLT][TASK_IO_MM_DL_IDX] =				ABE_TASK_ID(C_ABE_FW_TASK_IO_MM_DL);			smem1 = smem_mm_dl;		}		if (TONES_DL_PORT == id) {			abe->MultiFrame[TASK_IO_TONES_DL_SLT][TASK_IO_TONES_DL_IDX] =				ABE_TASK_ID(C_ABE_FW_TASK_IO_TONES_DL);		}		if (MM_EXT_IN_PORT == id) {			abe->MultiFrame[TASK_IO_MM_EXT_IN_SLT][TASK_IO_MM_EXT_IN_IDX] =				ABE_TASK_ID(C_ABE_FW_TASK_IO_MM_EXT_IN);						abe_block_copy(COPY_FROM_ABE_TO_HOST, ABE_DMEM,				       D_maxTaskBytesInSlot_ADDR, &dOppMode32,				       sizeof(u32));			if (dOppMode32 == DOPPMODE32_OPP100)								smem1 = smem_mm_ext_in_opp100;			else								smem1 = smem_mm_ext_in_opp50;		}		if (MM_EXT_OUT_PORT == id) {			abe->MultiFrame[TASK_IO_MM_EXT_OUT_SLT][TASK_IO_MM_EXT_OUT_IDX] =				ABE_TASK_ID(C_ABE_FW_TASK_IO_MM_EXT_OUT);		}		if (DMIC_PORT == id) {			abe->MultiFrame[TASK_IO_DMIC_HALF1_SLT][TASK_IO_DMIC_HALF1_IDX] =				ABE_TASK_ID(C_ABE_FW_TASK_IO_DMIC);			abe->MultiFrame[TASK_IO_DMIC_HALF2_SLT][TASK_IO_DMIC_HALF2_IDX] =				ABE_TASK_ID(C_ABE_FW_TASK_IO_DMIC);		}		if (VIB_DL_PORT == id) {			abe->MultiFrame[TASK_IO_VIB_DL_SLT][TASK_IO_VIB_DL_IDX] =				ABE_TASK_ID(C_ABE_FW_TASK_IO_VIB_DL);		}		if (PDM_UL_PORT == id) {			abe->MultiFrame[TASK_IO_PDM_UL_SLT][TASK_IO_PDM_UL_IDX] =				ABE_TASK_ID(C_ABE_FW_TASK_IO_PDM_UL);		}		if (PDM_DL_PORT == id) {			abe->MultiFrame[TASK_IO_PDM_DL_HALF1_SLT][TASK_IO_PDM_DL_HALF1_IDX] =				ABE_TASK_ID(C_ABE_FW_TASK_IO_PDM_DL);			abe->MultiFrame[TASK_IO_PDM_DL_HALF2_SLT][TASK_IO_PDM_DL_HALF2_IDX] =				ABE_TASK_ID(C_ABE_FW_TASK_IO_PDM_DL);		}		if (abe_port[id].protocol.direction == ABE_ATC_DIRECTION_IN)			direction = 0;		else						direction = 3;		sio_desc.drift_ASRC = 0;		sio_desc.drift_io = 0;		sio_desc.io_type_idx = (u8) io_sub_id;		sio_desc.samp_size = (u8) datasize;		sio_desc.hw_ctrl_addr = (u16) (dmareq_addr << 2);		sio_desc.atc_irq_data = (u8) dmareq_field;		sio_desc.flow_counter = (u16) 0;		sio_desc.direction_rw = (u8) direction;		sio_desc.repeat_last_samp = (u8) io_flag;		sio_desc.nsamp = (u8) nsamp;		sio_desc.x_io = (u8) x_io;				sio_desc.on_off = 0x80;		sio_desc.split_addr1 = (u16) smem1;		sio_desc.split_addr2 = (u16) smem2;		sio_desc.split_addr3 = (u16) smem3;		sio_desc.before_f_index = (u8) before_func_index;		sio_desc.after_f_index = (u8) after_func_index;		sio_desc.smem_addr1 = (u16) smem1;		sio_desc.atc_address1 = (u16) atc_desc_address1;		sio_desc.atc_pointer_saved1 = (u16) atc_ptr_saved;		sio_desc.data_size1 = (u8) datasize;		sio_desc.copy_f_index1 = (u8) copy_func_index1;		sio_desc.smem_addr2 = (u16) smem2;		sio_desc.atc_address2 = (u16) atc_desc_address2;		sio_desc.atc_pointer_saved2 = (u16) atc_ptr_saved2;		sio_desc.data_size2 = (u8) datasize2;		sio_desc.copy_f_index2 = (u8) copy_func_index2;		sio_desc_address = dmem_port_descriptors + (id *				sizeof(ABE_SIODescriptor));		abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_DMEM,				sio_desc_address, (u32 *) &sio_desc,				sizeof(sio_desc));		abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_DMEM,			       D_multiFrame_ADDR,			       (u32 *) abe->MultiFrame,			       sizeof(abe->MultiFrame));	}}void abe_enable_pp_io_task(u32 id){	if (MM_DL_PORT == id) {				abe->MultiFrame[TASK_IO_MM_DL_SLT][TASK_IO_MM_DL_IDX] =			ABE_TASK_ID(C_ABE_FW_TASK_IO_PING_PONG);		abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_DMEM,			       D_multiFrame_ADDR, (u32 *) abe->MultiFrame,			       sizeof(abe->MultiFrame));	} else {				abe->dbg_param |= ERR_API;		abe_dbg_error_log(ABE_PARAMETER_ERROR);	}}void abe_disable_pp_io_task(u32 id){	if (MM_DL_PORT == id) {				abe->MultiFrame[TASK_IO_MM_DL_SLT][TASK_IO_MM_DL_IDX] = 0;		abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_DMEM,			       D_multiFrame_ADDR, (u32 *) abe->MultiFrame,			       sizeof(abe->MultiFrame));	} else {				abe->dbg_param |= ERR_API;		abe_dbg_error_log(ABE_PARAMETER_ERROR);	}}void abe_init_dmic(u32 x){}void abe_init_mcpdm(u32 x){}void abe_reset_one_feature(u32 x){	all_feature[x] = all_feature_init[x];	}void abe_reset_all_features(void){	u16 i;	for (i = 0; i < MAXNBFEATURE; i++)		abe_reset_one_feature(i);}void abe_reset_all_ports(void){	u16 i;	for (i = 0; i < LAST_PORT_ID; i++)		abe_reset_port(i);		abe_write_mixer(MIXDL1, MUTE_GAIN, RAMP_100MS, MIX_DL1_INPUT_MM_DL);	abe_write_mixer(MIXDL1, MUTE_GAIN, RAMP_100MS, MIX_DL1_INPUT_MM_UL2);	abe_write_mixer(MIXDL1, MUTE_GAIN, RAMP_100MS, MIX_DL1_INPUT_VX_DL);	abe_write_mixer(MIXDL1, MUTE_GAIN, RAMP_100MS, MIX_DL1_INPUT_TONES);	abe_write_mixer(MIXDL2, MUTE_GAIN, RAMP_100MS, MIX_DL2_INPUT_TONES);	abe_write_mixer(MIXDL2, MUTE_GAIN, RAMP_100MS, MIX_DL2_INPUT_VX_DL);	abe_write_mixer(MIXDL2, MUTE_GAIN, RAMP_100MS, MIX_DL2_INPUT_MM_DL);	abe_write_mixer(MIXDL2, MUTE_GAIN, RAMP_100MS, MIX_DL2_INPUT_MM_UL2);	abe_write_mixer(MIXSDT, MUTE_GAIN, RAMP_100MS, MIX_SDT_INPUT_UP_MIXER);	abe_write_mixer(MIXSDT, GAIN_0dB, RAMP_100MS, MIX_SDT_INPUT_DL1_MIXER);	abe_write_mixer(MIXECHO, MUTE_GAIN, RAMP_100MS, MIX_ECHO_DL1);	abe_write_mixer(MIXECHO, MUTE_GAIN, RAMP_100MS, MIX_ECHO_DL2);	abe_write_mixer(MIXAUDUL, MUTE_GAIN, RAMP_100MS, MIX_AUDUL_INPUT_MM_DL);	abe_write_mixer(MIXAUDUL, MUTE_GAIN, RAMP_100MS, MIX_AUDUL_INPUT_TONES);	abe_write_mixer(MIXAUDUL, GAIN_0dB, RAMP_100MS, MIX_AUDUL_INPUT_UPLINK);	abe_write_mixer(MIXAUDUL, MUTE_GAIN, RAMP_100MS, MIX_AUDUL_INPUT_VX_DL);	abe_write_mixer(MIXVXREC, MUTE_GAIN, RAMP_100MS, MIX_VXREC_INPUT_TONES);	abe_write_mixer(MIXVXREC, MUTE_GAIN, RAMP_100MS, MIX_VXREC_INPUT_VX_DL);	abe_write_mixer(MIXVXREC, MUTE_GAIN, RAMP_100MS, MIX_VXREC_INPUT_MM_DL);	abe_write_mixer(MIXVXREC, MUTE_GAIN, RAMP_100MS, MIX_VXREC_INPUT_VX_UL);	abe_write_gain(GAINS_DMIC1, GAIN_0dB, RAMP_100MS, GAIN_LEFT_OFFSET);	abe_write_gain(GAINS_DMIC1, GAIN_0dB, RAMP_100MS, GAIN_RIGHT_OFFSET);	abe_write_gain(GAINS_DMIC2, GAIN_0dB, RAMP_100MS, GAIN_LEFT_OFFSET);	abe_write_gain(GAINS_DMIC2, GAIN_0dB, RAMP_100MS, GAIN_RIGHT_OFFSET);	abe_write_gain(GAINS_DMIC3, GAIN_0dB, RAMP_100MS, GAIN_LEFT_OFFSET);	abe_write_gain(GAINS_DMIC3, GAIN_0dB, RAMP_100MS, GAIN_RIGHT_OFFSET);	abe_write_gain(GAINS_AMIC, GAIN_0dB, RAMP_100MS, GAIN_LEFT_OFFSET);	abe_write_gain(GAINS_AMIC, GAIN_0dB, RAMP_100MS, GAIN_RIGHT_OFFSET);	abe_write_gain(GAINS_SPLIT, GAIN_0dB, RAMP_100MS, GAIN_LEFT_OFFSET);	abe_write_gain(GAINS_SPLIT, GAIN_0dB, RAMP_100MS, GAIN_RIGHT_OFFSET);	abe_write_gain(GAINS_DL1, GAIN_0dB, RAMP_100MS, GAIN_LEFT_OFFSET);	abe_write_gain(GAINS_DL1, GAIN_0dB, RAMP_100MS, GAIN_RIGHT_OFFSET);	abe_write_gain(GAINS_DL2, GAIN_0dB, RAMP_100MS, GAIN_LEFT_OFFSET);	abe_write_gain(GAINS_DL2, GAIN_0dB, RAMP_100MS, GAIN_RIGHT_OFFSET);	abe_write_gain(GAINS_BTUL, GAIN_0dB, RAMP_100MS, GAIN_LEFT_OFFSET);	abe_write_gain(GAINS_BTUL, GAIN_0dB, RAMP_100MS, GAIN_RIGHT_OFFSET);}void abe_clean_temporary_buffers(u32 id){	switch (id) {	case DMIC_PORT:		abe_reset_mem(ABE_DMEM, D_DMIC_UL_FIFO_ADDR,			D_DMIC_UL_FIFO_sizeof);		abe_reset_mem(ABE_SMEM, S_DMIC0_96_48_data_ADDR << 3,			S_DMIC0_96_48_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_DMIC1_96_48_data_ADDR << 3,			S_DMIC1_96_48_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_DMIC2_96_48_data_ADDR << 3,			S_DMIC2_96_48_data_sizeof << 3);				abe_reset_gain_mixer(GAINS_DMIC1, GAIN_LEFT_OFFSET);		abe_reset_gain_mixer(GAINS_DMIC1, GAIN_RIGHT_OFFSET);		abe_reset_gain_mixer(GAINS_DMIC2, GAIN_LEFT_OFFSET);		abe_reset_gain_mixer(GAINS_DMIC2, GAIN_RIGHT_OFFSET);		abe_reset_gain_mixer(GAINS_DMIC3, GAIN_LEFT_OFFSET);		abe_reset_gain_mixer(GAINS_DMIC3, GAIN_RIGHT_OFFSET);		break;	case PDM_UL_PORT:		abe_reset_mem(ABE_DMEM, D_McPDM_UL_FIFO_ADDR,			D_McPDM_UL_FIFO_sizeof);		abe_reset_mem(ABE_SMEM, S_AMIC_96_48_data_ADDR << 3,			S_AMIC_96_48_data_sizeof << 3);				abe_reset_gain_mixer(GAINS_AMIC, GAIN_LEFT_OFFSET);		abe_reset_gain_mixer(GAINS_AMIC, GAIN_RIGHT_OFFSET);		break;	case BT_VX_UL_PORT:		abe_reset_mem(ABE_DMEM, D_BT_UL_FIFO_ADDR, D_BT_UL_FIFO_sizeof);		abe_reset_mem(ABE_SMEM, S_BT_UL_ADDR << 3, S_BT_UL_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_BT_UL_8_48_HP_data_ADDR << 3,			      S_BT_UL_8_48_HP_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_BT_UL_8_48_LP_data_ADDR << 3,			      S_BT_UL_8_48_LP_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_BT_UL_16_48_HP_data_ADDR << 3,			      S_BT_UL_16_48_HP_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_BT_UL_16_48_LP_data_ADDR << 3,			      S_BT_UL_16_48_LP_data_sizeof << 3);				abe_reset_gain_mixer(GAINS_BTUL, GAIN_LEFT_OFFSET);		abe_reset_gain_mixer(GAINS_BTUL, GAIN_RIGHT_OFFSET);		break;	case MM_UL_PORT:		abe_reset_mem(ABE_DMEM, D_MM_UL_FIFO_ADDR, D_MM_UL_FIFO_sizeof);		abe_reset_mem(ABE_SMEM, S_MM_UL_ADDR << 3, S_MM_UL_sizeof << 3);		break;	case MM_UL2_PORT:		abe_reset_mem(ABE_DMEM, D_MM_UL2_FIFO_ADDR,			      D_MM_UL2_FIFO_sizeof);		abe_reset_mem(ABE_SMEM, S_MM_UL2_ADDR << 3,			      S_MM_UL2_sizeof << 3);		break;	case VX_UL_PORT:		abe_reset_mem(ABE_DMEM, D_VX_UL_FIFO_ADDR, D_VX_UL_FIFO_sizeof);		abe_reset_mem(ABE_SMEM, S_VX_UL_ADDR << 3, S_VX_UL_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_VX_UL_48_8_HP_data_ADDR << 3,			      S_VX_UL_48_8_HP_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_VX_UL_48_8_LP_data_ADDR << 3,			      S_VX_UL_48_8_LP_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_VX_UL_48_16_HP_data_ADDR << 3,			      S_VX_UL_48_16_HP_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_VX_UL_48_16_LP_data_ADDR << 3,			      S_VX_UL_48_16_LP_data_sizeof << 3);		abe_reset_gain_mixer(MIXAUDUL, MIX_AUDUL_INPUT_UPLINK);		break;	case MM_DL_PORT:		abe_reset_mem(ABE_DMEM, D_MM_DL_FIFO_ADDR, D_MM_DL_FIFO_sizeof);		abe_reset_mem(ABE_SMEM, S_MM_DL_ADDR << 3, S_MM_DL_sizeof << 3);		abe_reset_gain_mixer(MIXDL1, MIX_DL1_INPUT_MM_DL);		abe_reset_gain_mixer(MIXDL2, MIX_DL2_INPUT_MM_DL);		break;	case VX_DL_PORT:		abe_reset_mem(ABE_DMEM, D_VX_DL_FIFO_ADDR, D_VX_DL_FIFO_sizeof);		abe_reset_mem(ABE_SMEM, S_VX_DL_ADDR << 3, S_VX_DL_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_VX_DL_8_48_HP_data_ADDR << 3,			      S_VX_DL_8_48_HP_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_VX_DL_8_48_LP_data_ADDR << 3,			      S_VX_DL_8_48_LP_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_VX_DL_8_48_OSR_LP_data_ADDR << 3,			      S_VX_DL_8_48_OSR_LP_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_VX_DL_16_48_HP_data_ADDR << 3,			      S_VX_DL_16_48_HP_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_VX_DL_16_48_LP_data_ADDR << 3,			      S_VX_DL_16_48_LP_data_sizeof << 3);		abe_reset_gain_mixer(MIXDL1, MIX_DL1_INPUT_VX_DL);		abe_reset_gain_mixer(MIXDL2, MIX_DL2_INPUT_VX_DL);		break;	case TONES_DL_PORT:		abe_reset_mem(ABE_DMEM, D_TONES_DL_FIFO_ADDR,			      D_TONES_DL_FIFO_sizeof);		abe_reset_mem(ABE_SMEM, S_Tones_ADDR << 3, S_Tones_sizeof << 3);		abe_reset_gain_mixer(MIXDL1, MIX_DL1_INPUT_TONES);		abe_reset_gain_mixer(MIXDL2, MIX_DL2_INPUT_TONES);		break;	case VIB_DL_PORT:		abe_reset_mem(ABE_DMEM, D_VIB_DL_FIFO_ADDR,			      D_VIB_DL_FIFO_sizeof);		abe_reset_mem(ABE_SMEM, S_VIBRA_ADDR << 3, S_VIBRA_sizeof << 3);		break;	case BT_VX_DL_PORT:		abe_reset_mem(ABE_DMEM, D_BT_DL_FIFO_ADDR, D_BT_DL_FIFO_sizeof);		abe_reset_mem(ABE_SMEM, S_BT_DL_ADDR << 3, S_BT_DL_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_BT_DL_48_8_HP_data_ADDR << 3,			      S_BT_DL_48_8_HP_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_BT_DL_48_8_LP_data_ADDR << 3,			      S_BT_DL_48_8_LP_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_BT_DL_48_16_HP_data_ADDR << 3,			      S_BT_DL_48_16_HP_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_BT_DL_48_16_LP_data_ADDR << 3,			      S_BT_DL_48_16_LP_data_sizeof << 3);		break;	case PDM_DL_PORT:		abe_reset_mem(ABE_DMEM, D_McPDM_DL_FIFO_ADDR,			      D_McPDM_DL_FIFO_sizeof);		abe_reset_mem(ABE_SMEM, S_DL2_M_LR_EQ_data_ADDR << 3,			      S_DL2_M_LR_EQ_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_DL1_M_EQ_data_ADDR << 3,			      S_DL1_M_EQ_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_EARP_48_96_LP_data_ADDR << 3,			      S_EARP_48_96_LP_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_IHF_48_96_LP_data_ADDR << 3,			      S_IHF_48_96_LP_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_APS_DL1_EQ_data_ADDR << 3,			      S_APS_DL1_EQ_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_APS_DL2_EQ_data_ADDR << 3,			      S_APS_DL2_EQ_data_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_APS_DL2_L_IIRmem1_ADDR << 3,			      S_APS_DL2_L_IIRmem1_sizeof << 3);		abe_reset_mem(ABE_SMEM, S_APS_DL2_R_IIRmem1_ADDR << 3,			      S_APS_DL2_R_IIRmem1_sizeof << 3);		abe_reset_gain_mixer(GAINS_DL1, GAIN_LEFT_OFFSET);		abe_reset_gain_mixer(GAINS_DL1, GAIN_RIGHT_OFFSET);		abe_reset_gain_mixer(GAINS_DL2, GAIN_LEFT_OFFSET);		abe_reset_gain_mixer(GAINS_DL2, GAIN_RIGHT_OFFSET);		abe_reset_gain_mixer(MIXSDT, MIX_SDT_INPUT_UP_MIXER);		abe_reset_gain_mixer(MIXSDT, MIX_SDT_INPUT_DL1_MIXER);		break;	case MM_EXT_OUT_PORT:		abe_reset_mem(ABE_DMEM, D_MM_EXT_OUT_FIFO_ADDR,			      D_MM_EXT_OUT_FIFO_sizeof);		break;	case MM_EXT_IN_PORT:		abe_reset_mem(ABE_DMEM, D_MM_EXT_IN_FIFO_ADDR,			      D_MM_EXT_IN_FIFO_sizeof);		break;	}}void abe_reset_gain_mixer(u32 id, u32 p){	u32 lin_g, mixer_target, mixer_offset;	switch (id) {	default:	case GAINS_DMIC1:		mixer_offset = dmic1_gains_offset;		break;	case GAINS_DMIC2:		mixer_offset = dmic2_gains_offset;		break;	case GAINS_DMIC3:		mixer_offset = dmic3_gains_offset;		break;	case GAINS_AMIC:		mixer_offset = amic_gains_offset;		break;	case GAINS_DL1:		mixer_offset = dl1_gains_offset;		break;	case GAINS_DL2:		mixer_offset = dl2_gains_offset;		break;	case GAINS_SPLIT:		mixer_offset = splitters_gains_offset;		break;	case MIXDL1:		mixer_offset = mixer_dl1_offset;		break;	case MIXDL2:		mixer_offset = mixer_dl2_offset;		break;	case MIXECHO:		mixer_offset = mixer_echo_offset;		break;	case MIXSDT:		mixer_offset = mixer_sdt_offset;		break;	case MIXVXREC:		mixer_offset = mixer_vxrec_offset;		break;	case MIXAUDUL:		mixer_offset = mixer_audul_offset;		break;	case GAINS_BTUL:		mixer_offset = btul_gains_offset;		break;	}		mixer_target = (S_GCurrent_ADDR << 1);	mixer_target += mixer_offset;	mixer_target += p;		mixer_target <<= 2;	lin_g = 0;		abe_block_copy(COPY_FROM_HOST_TO_ABE, ABE_SMEM, mixer_target,		       (u32 *) &lin_g, sizeof(lin_g));}void abe_init_asrc_vx_dl(s32 dppm){	s32 el[45];	s32 temp0, temp1, adppm, dtemp, mem_tag, mem_addr;	u32 i = 0;	u32 n_fifo_el = 42;	temp0 = 0;	temp1 = 1;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_DL_VX_ADDR + (1 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm >= 0) {		el[i + 1] = 1;		adppm = dppm;	} else {		el[i + 1] = -1;		adppm = (-1 * dppm);	}		el[i + 2] = temp0;	i = i + 3;	dtemp = (adppm << 4) + adppm - ((adppm * 3481L) / 15625L);		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_DL_VX_ADDR + (2 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	el[i + 1] = temp0;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_DL_VX_ADDR + (3 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm == 0)		el[i + 1] = 0;	else		el[i + 1] = dtemp << 2;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_DL_VX_ADDR + (4 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm == 0)		el[i + 1] = 0;	else		el[i + 1] = (-dtemp) << 2;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_DL_VX_ADDR + (5 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm == 0)		el[i + 1] = 0x00400000;	else		el[i + 1] = (0x00100000 - (dtemp / 2)) << 2;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_CMEM;	mem_addr = C_AlphaCurrent_DL_VX_ADDR;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = 0x00000020;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_CMEM;	mem_addr = C_BetaCurrent_DL_VX_ADDR;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = 0x003fffe0;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_IOdescr_ADDR + (VX_DL_PORT * sizeof(ABE_SIODescriptor))		+ drift_asrc_;	el[i] = (mem_tag << 16) + mem_addr;	el[i + 1] = temp0;		el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_SMEM;	mem_addr = ASRC_DL_VX_Coefs_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);	if (dppm >= 0) {		el[i + 1] = C_CoefASRC16_VX_ADDR;		el[i + 1] = (el[i + 1] << 8) + C_CoefASRC16_VX_sizeof;		el[i + 2] = C_CoefASRC15_VX_ADDR;		el[i + 2] = (el[i + 2] << 8) + C_CoefASRC15_VX_sizeof;	} else {		el[i + 1] = C_CoefASRC1_VX_ADDR;		el[i + 1] = (el[i + 1] << 8) + C_CoefASRC1_VX_sizeof;		el[i + 2] = C_CoefASRC2_VX_ADDR;		el[i + 2] = (el[i + 2] << 8) + C_CoefASRC2_VX_sizeof;	}	i = i + 3;	mem_tag = ABE_CMEM;	mem_addr = ASRC_DL_VX_Coefs_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);		el[i + 1] = (temp0 << 16) + (temp1 << 12) + (temp0 << 4) + temp1;		el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_SMEM;	mem_addr = XinASRC_DL_VX_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = S_XinASRC_DL_VX_ADDR;	el[i + 1] = (el[i + 1] << 8) + S_XinASRC_DL_VX_sizeof;	el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_CMEM;	mem_addr = XinASRC_DL_VX_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);		el[i + 1] = (temp0 << 16) + (temp1 << 12) + (temp0 << 4) + temp0;		el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_SMEM;	mem_addr = IO_VX_DL_ASRC_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = S_XinASRC_DL_VX_ADDR;	el[i + 1] = (el[i + 1] << 8) + S_XinASRC_DL_VX_sizeof;	el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_CMEM;	mem_addr = IO_VX_DL_ASRC_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);		el[i + 1] = ((ASRC_DL_VX_FIR_L + ASRC_margin) << 16) + (temp1 << 12)		+ (temp0 << 4) + temp0;		el[i + 2] = temp0;	abe_write_fifo(ABE_DMEM, D_FwMemInitDescr_ADDR, (u32 *) &el[0],		       n_fifo_el);}void abe_init_asrc_vx_ul(s32 dppm){	s32 el[51];	s32 temp0, temp1, adppm, dtemp, mem_tag, mem_addr;	u32 i = 0;	u32 n_fifo_el = 48;	temp0 = 0;	temp1 = 1;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_UL_VX_ADDR + (1 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm >= 0) {		el[i + 1] = 1;		adppm = dppm;	} else {		el[i + 1] = -1;		adppm = (-1 * dppm);	}		el[i + 2] = temp0;	i = i + 3;	dtemp = (adppm << 4) + adppm - ((adppm * 3481L) / 15625L);		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_UL_VX_ADDR + (2 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	el[i + 1] = temp0;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_UL_VX_ADDR + (3 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm == 0)		el[i + 1] = 0;	else		el[i + 1] = dtemp << 2;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_UL_VX_ADDR + (4 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm == 0)		el[i + 1] = 0;	else		el[i + 1] = (-dtemp) << 2;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_UL_VX_ADDR + (5 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm == 0)		el[i + 1] = 0x00400000;	else		el[i + 1] = (0x00100000 - (dtemp / 2)) << 2;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_CMEM;	mem_addr = C_AlphaCurrent_UL_VX_ADDR;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = 0x00000020;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_CMEM;	mem_addr = C_BetaCurrent_UL_VX_ADDR;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = 0x003fffe0;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_IOdescr_ADDR + (VX_UL_PORT * sizeof(ABE_SIODescriptor))		+ drift_asrc_;	el[i] = (mem_tag << 16) + mem_addr;	el[i + 1] = temp0;		el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_SMEM;	mem_addr = ASRC_UL_VX_Coefs_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);	if (dppm >= 0) {		el[i + 1] = C_CoefASRC16_VX_ADDR;		el[i + 1] = (el[i + 1] << 8) + C_CoefASRC16_VX_sizeof;		el[i + 2] = C_CoefASRC15_VX_ADDR;		el[i + 2] = (el[i + 2] << 8) + C_CoefASRC15_VX_sizeof;	} else {		el[i + 1] = C_CoefASRC1_VX_ADDR;		el[i + 1] = (el[i + 1] << 8) + C_CoefASRC1_VX_sizeof;		el[i + 2] = C_CoefASRC2_VX_ADDR;		el[i + 2] = (el[i + 2] << 8) + C_CoefASRC2_VX_sizeof;	}	i = i + 3;	mem_tag = ABE_CMEM;	mem_addr = ASRC_UL_VX_Coefs_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);		el[i + 1] = (temp0 << 16) + (temp1 << 12) + (temp0 << 4) + temp1;		el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_SMEM;	mem_addr = XinASRC_UL_VX_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = S_XinASRC_UL_VX_ADDR;	el[i + 1] = (el[i + 1] << 8) + S_XinASRC_UL_VX_sizeof;	el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_CMEM;	mem_addr = XinASRC_UL_VX_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);		el[i + 1] = (temp0 << 16) + (temp1 << 12) + (temp0 << 4) + temp0;		el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_SMEM;	mem_addr = UL_48_8_DEC_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = S_XinASRC_UL_VX_ADDR;	el[i + 1] = (el[i + 1] << 8) + S_XinASRC_UL_VX_sizeof;	el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_CMEM;	mem_addr = UL_48_8_DEC_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);		el[i + 1] = ((ASRC_UL_VX_FIR_L + ASRC_margin) << 16) + (temp1 << 12)		+ (temp0 << 4) + temp0;		el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_SMEM;	mem_addr = UL_48_16_DEC_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = S_XinASRC_UL_VX_ADDR;	el[i + 1] = (el[i + 1] << 8) + S_XinASRC_UL_VX_sizeof;	el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_CMEM;	mem_addr = UL_48_16_DEC_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);		el[i + 1] = ((ASRC_UL_VX_FIR_L + ASRC_margin) << 16) + (temp1 << 12)		+ (temp0 << 4) + temp0;		el[i + 2] = temp0;	abe_write_fifo(ABE_DMEM, D_FwMemInitDescr_ADDR, (u32 *) &el[0],		       n_fifo_el);}void abe_init_asrc_mm_ext_in(s32 dppm){	s32 el[45];	s32 temp0, temp1, adppm, dtemp, mem_tag, mem_addr;	u32 i = 0;	u32 n_fifo_el = 42;	temp0 = 0;	temp1 = 1;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_MM_EXT_IN_ADDR + (1 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm >= 0) {		el[i + 1] = 1;		adppm = dppm;	} else {		el[i + 1] = -1;		adppm = (-1 * dppm);	}		el[i + 2] = temp0;	i = i + 3;	dtemp = (adppm << 4) + adppm - ((adppm * 3481L) / 15625L);		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_MM_EXT_IN_ADDR + (2 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	el[i + 1] = temp0;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_MM_EXT_IN_ADDR + (3 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm == 0)		el[i + 1] = 0;	else		el[i + 1] = dtemp << 2;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_MM_EXT_IN_ADDR + (4 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm == 0)		el[i + 1] = 0;	else		el[i + 1] = (-dtemp) << 2;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_MM_EXT_IN_ADDR + (5 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm == 0)		el[i + 1] = 0x00400000;	else		el[i + 1] = (0x00100000 - (dtemp / 2)) << 2;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_CMEM;	mem_addr = C_AlphaCurrent_MM_EXT_IN_ADDR;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = 0x00000020;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_CMEM;	mem_addr = C_BetaCurrent_MM_EXT_IN_ADDR;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = 0x003fffe0;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_IOdescr_ADDR + (MM_EXT_IN_PORT * sizeof(ABE_SIODescriptor))		+ drift_asrc_;	el[i] = (mem_tag << 16) + mem_addr;	el[i + 1] = temp0;		el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_SMEM;	mem_addr = ASRC_MM_EXT_IN_Coefs_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);	if (dppm >= 0) {		el[i + 1] = C_CoefASRC16_MM_ADDR;		el[i + 1] = (el[i + 1] << 8) + C_CoefASRC16_MM_sizeof;		el[i + 2] = C_CoefASRC15_MM_ADDR;		el[i + 2] = (el[i + 2] << 8) + C_CoefASRC15_MM_sizeof;	} else {		el[i + 1] = C_CoefASRC1_MM_ADDR;		el[i + 1] = (el[i + 1] << 8) + C_CoefASRC1_MM_sizeof;		el[i + 2] = C_CoefASRC2_MM_ADDR;		el[i + 2] = (el[i + 2] << 8) + C_CoefASRC2_MM_sizeof;	}	i = i + 3;	mem_tag = ABE_CMEM;	mem_addr = ASRC_MM_EXT_IN_Coefs_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);		el[i + 1] = (temp0 << 16) + (temp1 << 12) + (temp0 << 4) + temp1;		el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_SMEM;	mem_addr = XinASRC_MM_EXT_IN_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = S_XinASRC_MM_EXT_IN_ADDR;	el[i + 1] = (el[i + 1] << 8) + S_XinASRC_MM_EXT_IN_sizeof;	el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_CMEM;	mem_addr = XinASRC_MM_EXT_IN_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);		el[i + 1] = (temp0 << 16) + (temp1 << 12) + (temp0 << 4) + temp0;		el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_SMEM;	mem_addr = IO_MM_EXT_IN_ASRC_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = S_XinASRC_MM_EXT_IN_ADDR;	el[i + 1] = (el[i + 1] << 8) + S_XinASRC_MM_EXT_IN_sizeof;	el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_CMEM;	mem_addr = IO_MM_EXT_IN_ASRC_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);		el[i + 1] = ((ASRC_MM_EXT_IN_FIR_L + ASRC_margin + ASRC_N_48k) << 16) +		(temp1 << 12) + (temp0 << 4) + temp0;		el[i + 2] = temp0;	abe_write_fifo(ABE_DMEM, D_FwMemInitDescr_ADDR, (u32 *) &el[0],		       n_fifo_el);}void abe_init_asrc_bt_ul(s32 dppm){	s32 el[45];	s32 temp0, temp1, adppm, dtemp, mem_tag, mem_addr;	u32 i = 0;	u32 n_fifo_el = 42;	temp0 = 0;	temp1 = 1;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_BT_UL_ADDR + (1 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm >= 0) {		el[i + 1] = 1;		adppm = dppm;	} else {		el[i + 1] = -1;		adppm = (-1 * dppm);	}		el[i + 2] = temp0;	i = i + 3;	dtemp = (adppm << 4) + adppm - ((adppm * 3481L) / 15625L);		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_BT_UL_ADDR + (2 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	el[i + 1] = temp0;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_BT_UL_ADDR + (3 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm == 0)		el[i + 1] = 0;	else		el[i + 1] = dtemp << 2;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_BT_UL_ADDR + (4 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm == 0)		el[i + 1] = 0;	else		el[i + 1] = (-dtemp) << 2;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_BT_UL_ADDR + (5 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm == 0)		el[i + 1] = 0x00400000;	else		el[i + 1] = (0x00100000 - (dtemp / 2)) << 2;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_CMEM;	mem_addr = C_AlphaCurrent_BT_UL_ADDR;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = 0x00000020;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_CMEM;	mem_addr = C_BetaCurrent_BT_UL_ADDR;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = 0x003fffe0;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_IOdescr_ADDR + (BT_VX_UL_PORT * sizeof(ABE_SIODescriptor))		+ drift_asrc_;	el[i] = (mem_tag << 16) + mem_addr;	el[i + 1] = temp0;		el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_SMEM;	mem_addr = ASRC_BT_UL_Coefs_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);	if (dppm >= 0) {		el[i + 1] = C_CoefASRC16_VX_ADDR;		el[i + 1] = (el[i + 1] << 8) + C_CoefASRC16_VX_sizeof;		el[i + 2] = C_CoefASRC15_VX_ADDR;		el[i + 2] = (el[i + 2] << 8) + C_CoefASRC15_VX_sizeof;	} else {		el[i + 1] = C_CoefASRC1_VX_ADDR;		el[i + 1] = (el[i + 1] << 8) + C_CoefASRC1_VX_sizeof;		el[i + 2] = C_CoefASRC2_VX_ADDR;		el[i + 2] = (el[i + 2] << 8) + C_CoefASRC2_VX_sizeof;	}	i = i + 3;	mem_tag = ABE_CMEM;	mem_addr = ASRC_BT_UL_Coefs_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);		el[i + 1] = (temp0 << 16) + (temp1 << 12) + (temp0 << 4) + temp1;		el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_SMEM;	mem_addr = XinASRC_BT_UL_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = S_XinASRC_BT_UL_ADDR;	el[i + 1] = (el[i + 1] << 8) + S_XinASRC_BT_UL_sizeof;	el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_CMEM;	mem_addr = XinASRC_BT_UL_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);		el[i + 1] = (temp0 << 16) + (temp1 << 12) + (temp0 << 4) + temp0;		el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_SMEM;	mem_addr = IO_BT_UL_ASRC_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = S_XinASRC_BT_UL_ADDR;	el[i + 1] = (el[i + 1] << 8) + S_XinASRC_BT_UL_sizeof;	el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_CMEM;	mem_addr = IO_BT_UL_ASRC_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);		el[i + 1] = ((ASRC_BT_UL_FIR_L + ASRC_margin) << 16) + (temp1 << 12)		+ (temp0 << 4) + temp0;		el[i + 2] = temp0;	abe_write_fifo(ABE_DMEM, D_FwMemInitDescr_ADDR, (u32 *) &el[0],		       n_fifo_el);}void abe_init_asrc_bt_dl(s32 dppm){	s32 el[51];	s32 temp0, temp1, adppm, dtemp, mem_tag, mem_addr;	u32 i = 0;	u32 n_fifo_el = 48;	temp0 = 0;	temp1 = 1;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_BT_DL_ADDR + (1 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm >= 0) {		el[i + 1] = 1;		adppm = dppm;	} else {		el[i + 1] = -1;		adppm = (-1 * dppm);	}		el[i + 2] = temp0;	i = i + 3;	dtemp = (adppm << 4) + adppm - ((adppm * 3481L) / 15625L);		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_BT_DL_ADDR + (2 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	el[i + 1] = temp0;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_BT_DL_ADDR + (3 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm == 0)		el[i + 1] = 0;	else		el[i + 1] = dtemp << 2;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_BT_DL_ADDR + (4 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm == 0)		el[i + 1] = 0;	else		el[i + 1] = (-dtemp) << 2;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_AsrcVars_BT_DL_ADDR + (5 * sizeof(s32));	el[i] = (mem_tag << 16) + mem_addr;	if (dppm == 0)		el[i + 1] = 0x00400000;	else		el[i + 1] = (0x00100000 - (dtemp / 2)) << 2;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_CMEM;	mem_addr = C_AlphaCurrent_BT_DL_ADDR;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = 0x00000020;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_CMEM;	mem_addr = C_BetaCurrent_BT_DL_ADDR;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = 0x003fffe0;		el[i + 2] = temp0;	i = i + 3;		mem_tag = ABE_DMEM;	mem_addr = D_IOdescr_ADDR + (BT_VX_DL_PORT * sizeof(ABE_SIODescriptor))		+ drift_asrc_;	el[i] = (mem_tag << 16) + mem_addr;	el[i + 1] = temp0;		el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_SMEM;	mem_addr = ASRC_BT_DL_Coefs_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);	if (dppm >= 0) {		el[i + 1] = C_CoefASRC16_VX_ADDR;		el[i + 1] = (el[i + 1] << 8) + C_CoefASRC16_VX_sizeof;		el[i + 2] = C_CoefASRC15_VX_ADDR;		el[i + 2] = (el[i + 2] << 8) + C_CoefASRC15_VX_sizeof;	} else {		el[i + 1] = C_CoefASRC1_VX_ADDR;		el[i + 1] = (el[i + 1] << 8) + C_CoefASRC1_VX_sizeof;		el[i + 2] = C_CoefASRC2_VX_ADDR;		el[i + 2] = (el[i + 2] << 8) + C_CoefASRC2_VX_sizeof;	}	i = i + 3;	mem_tag = ABE_CMEM;	mem_addr = ASRC_BT_DL_Coefs_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);		el[i + 1] = (temp0 << 16) + (temp1 << 12) + (temp0 << 4) + temp1;		el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_SMEM;	mem_addr = XinASRC_BT_DL_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = S_XinASRC_BT_DL_ADDR;	el[i + 1] = (el[i + 1] << 8) + S_XinASRC_BT_DL_sizeof;	el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_CMEM;	mem_addr = XinASRC_BT_DL_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);		el[i + 1] = (temp0 << 16) + (temp1 << 12) + (temp0 << 4) + temp0;		el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_SMEM;	mem_addr = DL_48_8_DEC_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = S_XinASRC_BT_DL_ADDR;	el[i + 1] = (el[i + 1] << 8) + S_XinASRC_BT_DL_sizeof;	el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_CMEM;	mem_addr = DL_48_8_DEC_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);		el[i + 1] = ((ASRC_BT_DL_FIR_L + ASRC_margin) << 16) + (temp1 << 12)		+ (temp0 << 4) + temp0;		el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_SMEM;	mem_addr = DL_48_16_DEC_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);	el[i + 1] = S_XinASRC_BT_DL_ADDR;	el[i + 1] = (el[i + 1] << 8) + S_XinASRC_BT_DL_sizeof;	el[i + 2] = temp0;	i = i + 3;	mem_tag = ABE_CMEM;	mem_addr = DL_48_16_DEC_labelID;	el[i] = (mem_tag << 16) + (mem_addr << 2);		el[i + 1] = ((ASRC_BT_DL_FIR_L + ASRC_margin) << 16) + (temp1 << 12)		+ (temp0 << 4) + temp0;		el[i + 2] = temp0;	abe_write_fifo(ABE_DMEM, D_FwMemInitDescr_ADDR, (u32 *) &el[0],		       n_fifo_el);}
+/*
+
+  This file is provided under a dual BSD/GPLv2 license.  When using or
+  redistributing this file, you may do so under either license.
+
+  GPL LICENSE SUMMARY
+
+  Copyright(c) 2010-2011 Texas Instruments Incorporated,
+  All rights reserved.
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of version 2 of the GNU General Public License as
+  published by the Free Software Foundation.
+
+  This program is distributed in the hope that it will be useful, but
+  WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
+  The full GNU General Public License is included in this distribution
+  in the file called LICENSE.GPL.
+
+  BSD LICENSE
+
+  Copyright(c) 2010-2011 Texas Instruments Incorporated,
+  All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions
+  are met:
+
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in
+      the documentation and/or other materials provided with the
+      distribution.
+    * Neither the name of Texas Instruments Incorporated nor the names of
+      its contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
+#include <linux/module.h>
+#include <linux/moduleparam.h>
+#include <linux/init.h>
+#include <linux/err.h>
+#include <linux/slab.h>
+
+#include "abe_dbg.h"
+#include "abe.h"
+#include "abe_aess.h"
+#include "abe_gain.h"
+#include "abe_mem.h"
+#include "abe_port.h"
+#include "abe_seq.h"
+
+#include "abe_taskid.h"
+
+
+#define ABE_TASK_ID(ID) (OMAP_ABE_D_TASKSLIST_ADDR + sizeof(ABE_STask)*(ID))
+void omap_abe_build_scheduler_table(struct omap_abe *abe);
+void omap_abe_reset_all_ports(struct omap_abe *abe);
+
+const u32 abe_firmware_array[ABE_FIRMWARE_MAX_SIZE] = {
+#include "abe_firmware.c"
+};
+
+
+/*
+ * initialize the default values for call-backs to subroutines
+ * - FIFO IRQ call-backs for sequenced tasks
+ * - FIFO IRQ call-backs for audio player/recorders (ping-pong protocols)
+ * - Remote debugger interface
+ * - Error monitoring
+ * - Activity Tracing
+ */
+
+/**
+ * abe_init_mem - Allocate Kernel space memory map for ABE
+ *
+ * Memory map of ABE memory space for PMEM/DMEM/SMEM/DMEM
+ */
+void abe_init_mem(void __iomem **_io_base)
+{
+	int i;
+
+	abe = kzalloc(sizeof(struct omap_abe), GFP_KERNEL);
+	if (abe == NULL)
+		printk(KERN_ERR "ABE Allocation ERROR ");
+
+	for (i = 0; i < 5; i++)
+		abe->io_base[i] = _io_base[i];
+
+	mutex_init(&abe->mutex);
+
+}
+EXPORT_SYMBOL(abe_init_mem);
+
+/**
+ * abe_load_fw_param - Load ABE Firmware memories
+ * @PMEM: Pointer of Program memory data
+ * @PMEM_SIZE: Size of PMEM data
+ * @CMEM: Pointer of Coeffients memory data
+ * @CMEM_SIZE: Size of CMEM data
+ * @SMEM: Pointer of Sample memory data
+ * @SMEM_SIZE: Size of SMEM data
+ * @DMEM: Pointer of Data memory data
+ * @DMEM_SIZE: Size of DMEM data
+ *
+ */
+int abe_load_fw_param(u32 *ABE_FW)
+{
+	u32 pmem_size, dmem_size, smem_size, cmem_size;
+	u32 *pmem_ptr, *dmem_ptr, *smem_ptr, *cmem_ptr, *fw_ptr;
+	/* fast counter timer set at 4096 * 250us = 1,024s */
+	u32 data = 0x10001000;
+
+	_log(ABE_ID_LOAD_FW_param, 0, 0, 0);
+#define ABE_FW_OFFSET 5
+	fw_ptr = ABE_FW;
+	abe->firmware_version_number = *fw_ptr++;
+	pmem_size = *fw_ptr++;
+	cmem_size = *fw_ptr++;
+	dmem_size = *fw_ptr++;
+	smem_size = *fw_ptr++;
+	pmem_ptr = fw_ptr;
+	cmem_ptr = pmem_ptr + (pmem_size >> 2);
+	dmem_ptr = cmem_ptr + (cmem_size >> 2);
+	smem_ptr = dmem_ptr + (dmem_size >> 2);
+	/* do not load PMEM */
+	if (abe->warm_boot) {
+		/* Stop the event Generator */
+		omap_abe_stop_event_generator(abe);
+
+		/* Now we are sure the firmware is stalled */
+		omap_abe_mem_write(abe, OMAP_ABE_CMEM, 0, cmem_ptr,
+			       cmem_size);
+		omap_abe_mem_write(abe, OMAP_ABE_SMEM, 0, smem_ptr,
+			       smem_size);
+		omap_abe_mem_write(abe, OMAP_ABE_DMEM, 0, dmem_ptr,
+			       dmem_size);
+
+		/* Restore the event Generator status */
+		omap_abe_start_event_generator(abe);
+	} else {
+		omap_abe_mem_write(abe, OMAP_ABE_PMEM, 0, pmem_ptr,
+			       pmem_size);
+		omap_abe_mem_write(abe, OMAP_ABE_CMEM, 0, cmem_ptr,
+			       cmem_size);
+		omap_abe_mem_write(abe, OMAP_ABE_SMEM, 0, smem_ptr,
+			       smem_size);
+		omap_abe_mem_write(abe, OMAP_ABE_DMEM, 0, dmem_ptr,
+			       dmem_size);
+	}
+	omap_abe_mem_write(abe, OMAP_ABE_DMEM,
+		       OMAP_ABE_D_FASTCOUNTER_ADDR,
+		       &data,
+		       OMAP_ABE_D_FASTCOUNTER_SIZE);
+
+	/* Update Saturation threshold */
+	data = 0x00700000;
+	omap_abe_mem_write(abe, OMAP_ABE_SMEM,
+		       OMAP_ABE_S_SATURATION_EQ_ADDR,
+		       &data, 4);
+	data = 0x00900000;
+	omap_abe_mem_write(abe, OMAP_ABE_SMEM,
+		       OMAP_ABE_S_SATURATION_EQ_ADDR + 4,
+		       &data, 4);
+
+	abe->warm_boot = 1;
+	return 0;
+}
+EXPORT_SYMBOL(abe_load_fw_param);
+
+/**
+ * omap_abe_load_fw - Load ABE Firmware and initialize memories
+ * @abe: Pointer on abe handle
+ *
+ */
+int omap_abe_load_fw(struct omap_abe *abe, u32 *firmware)
+{
+	_log(ABE_ID_LOAD_FW, 0, 0, 0);
+	abe_load_fw_param(firmware);
+	omap_abe_reset_all_ports(abe);
+	omap_abe_build_scheduler_table(abe);
+	omap_abe_reset_all_sequence(abe);
+	omap_abe_select_main_port(OMAP_ABE_PDM_DL_PORT);
+	return 0;
+}
+EXPORT_SYMBOL(omap_abe_load_fw);
+
+/**
+ * abe_reload_fw - Reload ABE Firmware after OFF mode
+ */
+int omap_abe_reload_fw(struct omap_abe *abe, u32 *firmware)
+{
+	abe->warm_boot = 0;
+	abe_load_fw_param(firmware);
+	omap_abe_build_scheduler_table(abe);
+	omap_abe_dbg_reset(&abe->dbg);
+	/* IRQ circular read pointer in DMEM */
+	abe->irq_dbg_read_ptr = 0;
+	/* Restore Gains not managed by the drivers */
+	omap_abe_write_gain(abe, GAINS_SPLIT, GAIN_0dB,
+			    RAMP_2MS, GAIN_LEFT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_SPLIT, GAIN_0dB,
+			    RAMP_2MS, GAIN_RIGHT_OFFSET);
+
+	return 0;
+}
+EXPORT_SYMBOL(omap_abe_reload_fw);
+
+/**
+ * omap_abe_get_default_fw
+ *
+ * Get default ABE firmware
+ */
+u32 *omap_abe_get_default_fw(struct omap_abe *abe)
+{
+	return (u32 *)abe_firmware_array;
+}
+
+/**
+ * abe_build_scheduler_table
+ *
+ */
+void omap_abe_build_scheduler_table(struct omap_abe *abe)
+{
+	u16 i, n;
+	u8 *ptr;
+	u16 aUplinkMuxing[NBROUTE_UL];
+
+	/* LOAD OF THE TASKS' MULTIFRAME */
+	/* WARNING ON THE LOCATION OF IO_MM_DL WHICH IS PATCHED
+	   IN "abe_init_io_tasks" */
+	for (ptr = (u8 *) &(abe->MultiFrame[0][0]), i = 0;
+	     i < sizeof(abe->MultiFrame); i++)
+		*ptr++ = 0;
+
+	abe->MultiFrame[0][0] = 0/*ABE_TASK_ID(C_ABE_FW_TASK_IO_PDM_UL)*/;
+	abe->MultiFrame[0][3] = ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_DL_8);
+
+	abe->MultiFrame[1][3] = ABE_TASK_ID(C_ABE_FW_TASK_VX_DL_8_48_FIR);
+	abe->MultiFrame[1][6] = ABE_TASK_ID(C_ABE_FW_TASK_DL2Mixer);
+	abe->MultiFrame[1][7] = 0; /*ABE_TASK_ID(C_ABE_FW_TASK_IO_VIB_DL)*/
+
+	abe->MultiFrame[2][0] = ABE_TASK_ID(C_ABE_FW_TASK_DL1Mixer);
+	abe->MultiFrame[2][1] = ABE_TASK_ID(C_ABE_FW_TASK_SDTMixer);
+	abe->MultiFrame[2][5] = 0; /*ABE_TASK_ID(C_ABE_FW_TASK_IO_DMIC)*/
+
+	abe->MultiFrame[3][0] = ABE_TASK_ID(C_ABE_FW_TASK_DL1_GAIN);
+	abe->MultiFrame[3][6] = ABE_TASK_ID(C_ABE_FW_TASK_DL2_GAIN);
+	abe->MultiFrame[3][7] = ABE_TASK_ID(C_ABE_FW_TASK_DL2_EQ);
+
+	abe->MultiFrame[4][0] = ABE_TASK_ID(C_ABE_FW_TASK_DL1_EQ);
+	abe->MultiFrame[4][2] = ABE_TASK_ID(C_ABE_FW_TASK_VXRECMixer);
+	abe->MultiFrame[4][3] = ABE_TASK_ID(C_ABE_FW_TASK_VXREC_SPLIT);
+	abe->MultiFrame[4][6] = ABE_TASK_ID(C_ABE_FW_TASK_VIBRA1);
+	abe->MultiFrame[4][7] = ABE_TASK_ID(C_ABE_FW_TASK_VIBRA2);
+
+	abe->MultiFrame[5][0] = 0;
+	abe->MultiFrame[5][1] = ABE_TASK_ID(C_ABE_FW_TASK_EARP_48_96_LP);
+	abe->MultiFrame[5][2] = 0; /*ABE_TASK_ID(C_ABE_FW_TASK_IO_PDM_UL)*/
+	abe->MultiFrame[5][7] = ABE_TASK_ID(C_ABE_FW_TASK_VIBRA_SPLIT);
+
+	abe->MultiFrame[6][0] = ABE_TASK_ID(C_ABE_FW_TASK_EARP_48_96_LP);
+	abe->MultiFrame[6][4] = ABE_TASK_ID(C_ABE_FW_TASK_EchoMixer);
+	abe->MultiFrame[6][5] = ABE_TASK_ID(C_ABE_FW_TASK_BT_UL_SPLIT);
+
+	abe->MultiFrame[7][0] = 0; /*ABE_TASK_ID(C_ABE_FW_TASK_IO_PDM_DL)*/
+	abe->MultiFrame[7][3] = ABE_TASK_ID(C_ABE_FW_TASK_DBG_SYNC);
+	abe->MultiFrame[7][5] = ABE_TASK_ID(C_ABE_FW_TASK_ECHO_REF_SPLIT);
+
+	abe->MultiFrame[8][2] = ABE_TASK_ID(C_ABE_FW_TASK_DMIC1_96_48_LP);
+	abe->MultiFrame[8][4] = ABE_TASK_ID(C_ABE_FW_TASK_DMIC1_SPLIT);
+
+	abe->MultiFrame[9][2] = ABE_TASK_ID(C_ABE_FW_TASK_DMIC2_96_48_LP);
+	abe->MultiFrame[9][4] = ABE_TASK_ID(C_ABE_FW_TASK_DMIC2_SPLIT);
+	abe->MultiFrame[9][6] = 0;
+	abe->MultiFrame[9][7] = ABE_TASK_ID(C_ABE_FW_TASK_IHF_48_96_LP);
+
+	abe->MultiFrame[10][2] = ABE_TASK_ID(C_ABE_FW_TASK_DMIC3_96_48_LP);
+	abe->MultiFrame[10][4] = ABE_TASK_ID(C_ABE_FW_TASK_DMIC3_SPLIT);
+	abe->MultiFrame[10][7] = ABE_TASK_ID(C_ABE_FW_TASK_IHF_48_96_LP);
+
+	abe->MultiFrame[11][2] = ABE_TASK_ID(C_ABE_FW_TASK_AMIC_96_48_LP);
+	abe->MultiFrame[11][4] = ABE_TASK_ID(C_ABE_FW_TASK_AMIC_SPLIT);
+	abe->MultiFrame[11][7] = ABE_TASK_ID(C_ABE_FW_TASK_VIBRA_PACK);
+
+	abe->MultiFrame[12][3] = ABE_TASK_ID(C_ABE_FW_TASK_VX_UL_ROUTING);
+	abe->MultiFrame[12][4] = ABE_TASK_ID(C_ABE_FW_TASK_ULMixer);
+	abe->MultiFrame[12][5] = ABE_TASK_ID(C_ABE_FW_TASK_VX_UL_48_8);
+
+	abe->MultiFrame[13][2] = ABE_TASK_ID(C_ABE_FW_TASK_MM_UL2_ROUTING);
+	abe->MultiFrame[13][3] = ABE_TASK_ID(C_ABE_FW_TASK_SideTone);
+	abe->MultiFrame[13][5] = 0; /*ABE_TASK_ID(C_ABE_FW_TASK_IO_BT_VX_DL)*/
+
+	abe->MultiFrame[14][3] = 0; /*ABE_TASK_ID(C_ABE_FW_TASK_IO_DMIC)*/
+	abe->MultiFrame[14][4] = ABE_TASK_ID(C_ABE_FW_TASK_BT_DL_48_8_FIR_FW_COMPAT);
+
+	abe->MultiFrame[15][0] = 0; /*ABE_TASK_ID(C_ABE_FW_TASK_IO_MM_EXT_OUT)*/
+	abe->MultiFrame[15][3] = 0; /*ABE_TASK_ID(C_ABE_FW_TASK_IO_BT_VX_UL)*/
+	abe->MultiFrame[15][6] = 0; /*ABE_TASK_ID(C_ABE_FW_TASK_ASRC_BT_UL_8)*/
+
+	abe->MultiFrame[16][2] = ABE_TASK_ID(C_ABE_FW_TASK_ASRC_VX_UL_8);
+	abe->MultiFrame[16][3] = 0; /*ABE_TASK_ID(C_ABE_FW_TASK_IO_VX_UL)*/
+
+	abe->MultiFrame[17][2] = ABE_TASK_ID(C_ABE_FW_TASK_BT_UL_8_48);
+	abe->MultiFrame[17][3] = 0; /*ABE_TASK_ID(C_ABE_FW_TASK_IO_MM_UL2)*/
+
+	abe->MultiFrame[18][0] = 0; /*ABE_TASK_ID(C_ABE_FW_TASK_IO_MM_DL)*/
+	abe->MultiFrame[18][6] = 0; /*ABE_TASK_ID(C_ABE_FW_TASK_ASRC_BT_DL_8)*/
+
+	abe->MultiFrame[19][0] = 0; /*ABE_TASK_ID(C_ABE_FW_TASK_IO_PDM_DL)*/
+
+	/*         MM_UL is moved to OPP 100% */
+	abe->MultiFrame[19][6] = 0; /*ABE_TASK_ID(C_ABE_FW_TASK_IO_MM_UL)*/
+
+	abe->MultiFrame[20][0] = 0; /*ABE_TASK_ID(C_ABE_FW_TASK_IO_TONES_DL)*/
+	abe->MultiFrame[20][6] = 0; /*ABE_TASK_ID(C_ABE_FW_TASK_ASRC_MM_EXT_IN)*/
+
+	abe->MultiFrame[21][1] = ABE_TASK_ID(C_ABE_FW_TASK_DEBUGTRACE_VX_ASRCs);
+	abe->MultiFrame[21][2] = ABE_TASK_ID(C_ABE_FW_TASK_CHECK_IIR_RIGHT_8K);
+	abe->MultiFrame[21][3] = 0/*ABE_TASK_ID(C_ABE_FW_TASK_IO_MM_EXT_IN)*/;
+	/* MUST STAY ON SLOT 22 */
+	abe->MultiFrame[22][0] = ABE_TASK_ID(C_ABE_FW_TASK_DEBUG_IRQFIFO);
+	abe->MultiFrame[22][1] = ABE_TASK_ID(C_ABE_FW_TASK_INIT_FW_MEMORY);
+	abe->MultiFrame[22][2] = ABE_TASK_ID(C_ABE_FW_TASK_IO_VX_DL);
+	/* MM_EXT_IN_SPLIT task must be after IO_MM_EXT_IN and before
+	   ASRC_MM_EXT_IN in order to manage OPP50 <-> transitions */
+	abe->MultiFrame[22][4] = ABE_TASK_ID(C_ABE_FW_TASK_MM_EXT_IN_SPLIT);
+
+	abe->MultiFrame[23][0] = ABE_TASK_ID(C_ABE_FW_TASK_GAIN_UPDATE);
+	abe->MultiFrame[23][2] = ABE_TASK_ID(C_ABE_FW_TASK_CHECK_IIR_LEFT_8K);
+
+	omap_abe_mem_write(abe, OMAP_ABE_DMEM, OMAP_ABE_D_MULTIFRAME_ADDR,
+		       (u32 *) abe->MultiFrame, sizeof(abe->MultiFrame));
+	/* reset the uplink router */
+	n = (OMAP_ABE_D_AUPLINKROUTING_SIZE) >> 1;
+	for (i = 0; i < n; i++)
+		aUplinkMuxing[i] = ZERO_labelID;
+
+	omap_abe_mem_write(abe, OMAP_ABE_DMEM, OMAP_ABE_D_AUPLINKROUTING_ADDR,
+		       (u32 *) aUplinkMuxing, sizeof(aUplinkMuxing));
+}
+
+/**
+ * omap_abe_reset_port
+ * @id: ABE port ID
+ *
+ * stop the port activity and reload default parameters on the associated
+ * processing features.
+ * Clears the internal AE buffers.
+ */
+int omap_abe_reset_port(u32 id)
+{
+	_log(ABE_ID_RESET_PORT, id, 0, 0);
+	abe_port[id] = ((abe_port_t *) abe_port_init)[id];
+	return 0;
+}
+
+/**
+ * abe_reset_all_ports
+ *
+ * load default configuration for all features
+ */
+void omap_abe_reset_all_ports(struct omap_abe *abe)
+{
+	u16 i;
+	for (i = 0; i < LAST_PORT_ID; i++)
+		omap_abe_reset_port(i);
+	/* mixers' configuration */
+	omap_abe_write_mixer(abe, MIXDL1, MUTE_GAIN,
+			     RAMP_2MS, MIX_DL1_INPUT_MM_DL);
+	omap_abe_write_mixer(abe, MIXDL1, MUTE_GAIN,
+			     RAMP_2MS, MIX_DL1_INPUT_MM_UL2);
+	omap_abe_write_mixer(abe, MIXDL1, MUTE_GAIN,
+			     RAMP_2MS, MIX_DL1_INPUT_VX_DL);
+	omap_abe_write_mixer(abe, MIXDL1, MUTE_GAIN,
+			     RAMP_2MS, MIX_DL1_INPUT_TONES);
+	omap_abe_write_mixer(abe, MIXDL2, MUTE_GAIN,
+			     RAMP_2MS, MIX_DL2_INPUT_TONES);
+	omap_abe_write_mixer(abe, MIXDL2, MUTE_GAIN,
+			     RAMP_2MS, MIX_DL2_INPUT_VX_DL);
+	omap_abe_write_mixer(abe, MIXDL2, MUTE_GAIN,
+			     RAMP_2MS, MIX_DL2_INPUT_MM_DL);
+	omap_abe_write_mixer(abe, MIXDL2, MUTE_GAIN,
+			     RAMP_2MS, MIX_DL2_INPUT_MM_UL2);
+	omap_abe_write_mixer(abe, MIXSDT, MUTE_GAIN,
+			     RAMP_2MS, MIX_SDT_INPUT_UP_MIXER);
+	omap_abe_write_mixer(abe, MIXSDT, GAIN_0dB,
+			     RAMP_2MS, MIX_SDT_INPUT_DL1_MIXER);
+	omap_abe_write_mixer(abe, MIXECHO, MUTE_GAIN,
+			     RAMP_2MS, MIX_ECHO_DL1);
+	omap_abe_write_mixer(abe, MIXECHO, MUTE_GAIN,
+			     RAMP_2MS, MIX_ECHO_DL2);
+	omap_abe_write_mixer(abe, MIXAUDUL, MUTE_GAIN,
+			     RAMP_2MS, MIX_AUDUL_INPUT_MM_DL);
+	omap_abe_write_mixer(abe, MIXAUDUL, MUTE_GAIN,
+			     RAMP_2MS, MIX_AUDUL_INPUT_TONES);
+	omap_abe_write_mixer(abe, MIXAUDUL, GAIN_0dB,
+			     RAMP_2MS, MIX_AUDUL_INPUT_UPLINK);
+	omap_abe_write_mixer(abe, MIXAUDUL, MUTE_GAIN,
+			     RAMP_2MS, MIX_AUDUL_INPUT_VX_DL);
+	omap_abe_write_mixer(abe, MIXVXREC, MUTE_GAIN,
+			     RAMP_2MS, MIX_VXREC_INPUT_TONES);
+	omap_abe_write_mixer(abe, MIXVXREC, MUTE_GAIN,
+			     RAMP_2MS, MIX_VXREC_INPUT_VX_DL);
+	omap_abe_write_mixer(abe, MIXVXREC, MUTE_GAIN,
+			     RAMP_2MS, MIX_VXREC_INPUT_MM_DL);
+	omap_abe_write_mixer(abe, MIXVXREC, MUTE_GAIN,
+			     RAMP_2MS, MIX_VXREC_INPUT_VX_UL);
+#if 1 // MO2_CX2_SKT_ICS, mo2sujin.kim, 0717 //LGE_D1_BSP_ICS seungdae.goh@lge.com 2012-05-05 set  0  DMIC gain 
+	omap_abe_write_gain(abe, GAINS_DMIC1, GAIN_0dB,
+			    RAMP_2MS, GAIN_LEFT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DMIC1, GAIN_0dB,
+			    RAMP_2MS, GAIN_RIGHT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DMIC2, GAIN_0dB,
+			    RAMP_2MS, GAIN_LEFT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DMIC2, GAIN_0dB,
+			    RAMP_2MS, GAIN_RIGHT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DMIC3, GAIN_0dB,
+			    RAMP_2MS, GAIN_LEFT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DMIC3, GAIN_0dB,
+			    RAMP_2MS, GAIN_RIGHT_OFFSET);
+#else
+	omap_abe_write_gain(abe, GAINS_DMIC1, MUTE_GAIN,
+			    RAMP_2MS, GAIN_LEFT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DMIC1, MUTE_GAIN,
+			    RAMP_2MS, GAIN_RIGHT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DMIC2, MUTE_GAIN,
+			    RAMP_2MS, GAIN_LEFT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DMIC2, MUTE_GAIN,
+			    RAMP_2MS, GAIN_RIGHT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DMIC3, MUTE_GAIN,
+			    RAMP_2MS, GAIN_LEFT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DMIC3, MUTE_GAIN,
+			    RAMP_2MS, GAIN_RIGHT_OFFSET);
+#endif
+
+	omap_abe_write_gain(abe, GAINS_AMIC, GAIN_0dB,
+			    RAMP_2MS, GAIN_LEFT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_AMIC, GAIN_0dB,
+			    RAMP_2MS, GAIN_RIGHT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_SPLIT, GAIN_0dB,
+			    RAMP_2MS, GAIN_LEFT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_SPLIT, GAIN_0dB,
+			    RAMP_2MS, GAIN_RIGHT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DL1, GAIN_0dB,
+			    RAMP_2MS, GAIN_LEFT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DL1, GAIN_0dB,
+			    RAMP_2MS, GAIN_RIGHT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DL2, GAIN_0dB,
+			    RAMP_2MS, GAIN_LEFT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_DL2, GAIN_0dB,
+			    RAMP_2MS, GAIN_RIGHT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_BTUL, GAIN_0dB,
+			    RAMP_2MS, GAIN_LEFT_OFFSET);
+	omap_abe_write_gain(abe, GAINS_BTUL, GAIN_0dB,
+			    RAMP_2MS, GAIN_RIGHT_OFFSET);
+}

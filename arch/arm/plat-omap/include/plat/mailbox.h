@@ -3,12 +3,11 @@
 #ifndef MAILBOX_H
 #define MAILBOX_H
 
-#include <linux/wait.h>
+#include <linux/spinlock.h>
 #include <linux/workqueue.h>
-#include <linux/blkdev.h>
 #include <linux/interrupt.h>
+#include <linux/device.h>
 #include <linux/kfifo.h>
-#include <linux/notifier.h>
 
 typedef u32 mbox_msg_t;
 struct omap_mbox;
@@ -20,8 +19,6 @@ typedef int __bitwise omap_mbox_irq_t;
 typedef int __bitwise omap_mbox_type_t;
 #define OMAP_MBOX_TYPE1 ((__force omap_mbox_type_t) 1)
 #define OMAP_MBOX_TYPE2 ((__force omap_mbox_type_t) 2)
-
-#define MBOX_KFIFO_SIZE        (256)
 
 struct omap_mbox_ops {
 	omap_mbox_type_t	type;
@@ -46,10 +43,9 @@ struct omap_mbox_ops {
 
 struct omap_mbox_queue {
 	spinlock_t		lock;
-	struct kfifo            fifo;
+	struct kfifo		fifo;
 	struct work_struct	work;
 	struct tasklet_struct	tasklet;
-	int	(*callback)(void *);
 	struct omap_mbox	*mbox;
 	bool full;
 };
@@ -57,24 +53,13 @@ struct omap_mbox_queue {
 struct omap_mbox {
 	char			*name;
 	unsigned int		irq;
-
 	struct omap_mbox_queue	*txq, *rxq;
-
 	struct omap_mbox_ops	*ops;
-
-	mbox_msg_t		seq_snd, seq_rcv;
-
 	struct device		*dev;
-
-	struct omap_mbox	*next;
 	void			*priv;
-
-	void			(*err_notify)(void);
-
 	int			use_count;
-	int			nr_mbox_users;
-	int			nr_mbox;
-	struct blocking_notifier_head	notifier;
+	struct blocking_notifier_head   notifier;
+	unsigned int		pm_constraint;
 };
 
 int omap_mbox_msg_send(struct omap_mbox *, mbox_msg_t msg);
@@ -83,8 +68,8 @@ void omap_mbox_init_seq(struct omap_mbox *);
 struct omap_mbox *omap_mbox_get(const char *, struct notifier_block *nb);
 void omap_mbox_put(struct omap_mbox *mbox, struct notifier_block *nb);
 
-int omap_mbox_register(struct device *parent, struct omap_mbox *);
-int omap_mbox_unregister(struct omap_mbox *);
+int omap_mbox_register(struct device *parent, struct omap_mbox **);
+int omap_mbox_unregister(void);
 
 static inline void omap_mbox_save_ctx(struct omap_mbox *mbox)
 {

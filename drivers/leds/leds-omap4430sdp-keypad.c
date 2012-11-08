@@ -32,7 +32,7 @@ struct keypad_led_data {
 
 #define KP_LED_PWM1ON		0x00
 #define KP_LED_PWM1OFF		0x01
-#define KP_LED_TOGGLE3		TWL6030_TOGGLE3
+#define KP_LED_TOGGLE3		0x92
 
 static void omap4430_keypad_led_store(struct led_classdev *led_cdev,
 				enum led_brightness value)
@@ -46,10 +46,10 @@ static void omap4430_keypad_led_store(struct led_classdev *led_cdev,
 			brightness = (~(value/2)) & 0x7f;
 
 		twl_i2c_write_u8(TWL_MODULE_PWM, brightness, KP_LED_PWM1ON);
-		twl_i2c_write_u8(TWL6030_MODULE_ID1, 0x36, TWL6030_TOGGLE3);
+		twl_i2c_write_u8(TWL6030_MODULE_ID1, 0x36, KP_LED_TOGGLE3);
 	} else {
-		twl_i2c_write_u8(TWL6030_MODULE_ID1, 0x31, TWL6030_TOGGLE3);
-		twl_i2c_write_u8(TWL6030_MODULE_ID1, 0x37, TWL6030_TOGGLE3);
+		twl_i2c_write_u8(TWL6030_MODULE_ID1, 0x31, KP_LED_TOGGLE3);
+		twl_i2c_write_u8(TWL6030_MODULE_ID1, 0x37, KP_LED_TOGGLE3);
 	}
 
 }
@@ -85,7 +85,7 @@ static int omap4430_keypad_led_probe(struct platform_device *pdev)
 	/*TO DO pass in these values from the board file */
 	twl_i2c_write_u8(TWL_MODULE_PWM, 0xFF, KP_LED_PWM1ON);
 	twl_i2c_write_u8(TWL_MODULE_PWM, 0x7f, KP_LED_PWM1OFF);
-	twl_i2c_write_u8(TWL6030_MODULE_ID1, 0x06, TWL6030_TOGGLE3);
+	twl_i2c_write_u8(TWL6030_MODULE_ID1, 0x06, KP_LED_TOGGLE3);
 
 	pr_info("%s:Exit\n", __func__);
 

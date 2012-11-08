@@ -23,7 +23,6 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 #include <sound/initval.h>
 #include <sound/tlv.h>
 
@@ -52,8 +51,6 @@ static const u16 wm8974_reg[WM8974_CACHEREGNUM] = {
 
 struct wm8974_priv {
 	enum snd_soc_control_type control_type;
-	void *control_data;
-	u16 reg_cache[WM8974_CACHEREGNUM];
 };
 
 #define wm8974_reset(c)	snd_soc_write(c, WM8974_RESET, 0)
@@ -275,10 +272,11 @@ static const struct snd_soc_dapm_route audio_map[] = {
 
 static int wm8974_add_widgets(struct snd_soc_codec *codec)
 {
-	snd_soc_dapm_new_controls(codec->dapm, wm8974_dapm_widgets,
-				  ARRAY_SIZE(wm8974_dapm_widgets));
+	struct snd_soc_dapm_context *dapm = &codec->dapm;
 
-	snd_soc_dapm_add_routes(codec->dapm, audio_map, ARRAY_SIZE(audio_map));
+	snd_soc_dapm_new_controls(dapm, wm8974_dapm_widgets,
+				  ARRAY_SIZE(wm8974_dapm_widgets));
+	snd_soc_dapm_add_routes(dapm, audio_map, ARRAY_SIZE(audio_map));
 
 	return 0;
 }
@@ -531,7 +529,7 @@ static int wm8974_set_bias_level(struct snd_soc_codec *codec,
 	case SND_SOC_BIAS_STANDBY:
 		power1 |= WM8974_POWER1_BIASEN | WM8974_POWER1_BUFIOEN;
 
-		if (codec->dapm->bias_level == SND_SOC_BIAS_OFF) {
+		if (codec->dapm.bias_level == SND_SOC_BIAS_OFF) {
 			/* Initial cap charge at VMID 5k */
 			snd_soc_write(codec, WM8974_POWER1, power1 | 0x3);
 			mdelay(100);
@@ -548,7 +546,7 @@ static int wm8974_set_bias_level(struct snd_soc_codec *codec,
 		break;
 	}
 
-	codec->dapm->bias_level = level;
+	codec->dapm.bias_level = level;
 	return 0;
 }
 
@@ -608,10 +606,8 @@ static int wm8974_resume(struct snd_soc_codec *codec)
 
 static int wm8974_probe(struct snd_soc_codec *codec)
 {
-	struct wm8974_priv *wm8974 = snd_soc_codec_get_drvdata(codec);
 	int ret = 0;
 
-	codec->control_data = wm8974->control_data;
 	ret = snd_soc_codec_set_cache_io(codec, 7, 9, SND_SOC_I2C);
 	if (ret < 0) {
 		dev_err(codec->dev, "Failed to set cache I/O: %d\n", ret);
@@ -662,7 +658,6 @@ static __devinit int wm8974_i2c_probe(struct i2c_client *i2c,
 		return -ENOMEM;
 
 	i2c_set_clientdata(i2c, wm8974);
-	wm8974->control_data = i2c;
 
 	ret = snd_soc_register_codec(&i2c->dev,
 			&soc_codec_dev_wm8974, &wm8974_dai, 1);

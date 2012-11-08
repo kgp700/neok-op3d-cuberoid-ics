@@ -375,7 +375,7 @@ static struct platform_driver pxa2xx_i2s_driver = {
 	.remove = __devexit_p(pxa2xx_i2s_drv_remove),
 
 	.driver = {
-		.name = "pxa2xx-i2s-dai",
+		.name = "pxa2xx-i2s",
 		.owner = THIS_MODULE,
 	},
 };
@@ -398,3 +398,4 @@ module_exit(pxa2xx_i2s_exit);
 MODULE_AUTHOR("Liam Girdwood, lrg@slimlogic.co.uk");
 MODULE_DESCRIPTION("pxa2xx I2S SoC Interface");
 MODULE_LICENSE("GPL");
+MODULE_ALIAS("platform:pxa2xx-i2s");

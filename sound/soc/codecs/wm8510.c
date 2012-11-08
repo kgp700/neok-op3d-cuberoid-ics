@@ -24,12 +24,9 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 #include <sound/initval.h>
 
 #include "wm8510.h"
-
-#define WM8510_VERSION "0.6"
 
 /*
  * wm8510 register cache
@@ -62,7 +59,6 @@ static const u16 wm8510_reg[WM8510_CACHEREGNUM] = {
 /* codec private data */
 struct wm8510_priv {
 	enum snd_soc_control_type control_type;
-	void *control_data;
 };
 
 static const char *wm8510_companding[] = { "Off", "NC", "u-law", "A-law" };
@@ -219,10 +215,11 @@ static const struct snd_soc_dapm_route audio_map[] = {
 
 static int wm8510_add_widgets(struct snd_soc_codec *codec)
 {
-	snd_soc_dapm_new_controls(codec->dapm, wm8510_dapm_widgets,
-				  ARRAY_SIZE(wm8510_dapm_widgets));
+	struct snd_soc_dapm_context *dapm = &codec->dapm;
 
-	snd_soc_dapm_add_routes(codec->dapm, audio_map, ARRAY_SIZE(audio_map));
+	snd_soc_dapm_new_controls(dapm, wm8510_dapm_widgets,
+				  ARRAY_SIZE(wm8510_dapm_widgets));
+	snd_soc_dapm_add_routes(dapm, audio_map, ARRAY_SIZE(audio_map));
 
 	return 0;
 }
@@ -481,7 +478,7 @@ static int wm8510_set_bias_level(struct snd_soc_codec *codec,
 	case SND_SOC_BIAS_STANDBY:
 		power1 |= WM8510_POWER1_BIASEN | WM8510_POWER1_BUFIOEN;
 
-		if (codec->dapm->bias_level == SND_SOC_BIAS_OFF) {
+		if (codec->dapm.bias_level == SND_SOC_BIAS_OFF) {
 			/* Initial cap charge at VMID 5k */
 			snd_soc_write(codec, WM8510_POWER1, power1 | 0x3);
 			mdelay(100);
@@ -498,7 +495,7 @@ static int wm8510_set_bias_level(struct snd_soc_codec *codec,
 		break;
 	}
 
-	codec->dapm->bias_level = level;
+	codec->dapm.bias_level = level;
 	return 0;
 }
 
@@ -563,9 +560,6 @@ static int wm8510_probe(struct snd_soc_codec *codec)
 	struct wm8510_priv *wm8510 = snd_soc_codec_get_drvdata(codec);
 	int ret;
 
-	pr_info("WM8510 Audio Codec %s", WM8510_VERSION);
-
-	codec->control_data = wm8510->control_data;
 	ret = snd_soc_codec_set_cache_io(codec, 7, 9,  wm8510->control_type);
 	if (ret < 0) {
 		printk(KERN_ERR "wm8510: failed to set cache I/O: %d\n", ret);
@@ -575,7 +569,6 @@ static int wm8510_probe(struct snd_soc_codec *codec)
 	wm8510_reset(codec);
 
 	/* power on device */
-	codec->dapm->bias_level = SND_SOC_BIAS_OFF;
 	wm8510_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
 	snd_soc_add_controls(codec, wm8510_snd_controls,
 				ARRAY_SIZE(wm8510_snd_controls));
@@ -615,7 +608,6 @@ static int __devinit wm8510_spi_probe(struct spi_device *spi)
 	if (wm8510 == NULL)
 		return -ENOMEM;
 
-	wm8510->control_data = spi;
 	wm8510->control_type = SND_SOC_SPI;
 	spi_set_drvdata(spi, wm8510);
 
@@ -635,7 +627,6 @@ static int __devexit wm8510_spi_remove(struct spi_device *spi)
 static struct spi_driver wm8510_spi_driver = {
 	.driver = {
 		.name	= "wm8510",
-		.bus	= &spi_bus_type,
 		.owner	= THIS_MODULE,
 	},
 	.probe		= wm8510_spi_probe,
@@ -655,7 +646,6 @@ static __devinit int wm8510_i2c_probe(struct i2c_client *i2c,
 		return -ENOMEM;
 
 	i2c_set_clientdata(i2c, wm8510);
-	wm8510->control_data = i2c;
 	wm8510->control_type = SND_SOC_I2C;
 
 	ret =  snd_soc_register_codec(&i2c->dev,

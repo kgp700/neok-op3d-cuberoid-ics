@@ -37,6 +37,12 @@
 
 #include <linux/list.h>
 
+enum buffer_map_state {
+	UN_MAPPED = 0,
+	PRE_MAPPED,
+	MUSB_MAPPED
+};
+
 struct musb_request {
 	struct usb_request	request;
 	struct list_head	list;
@@ -44,7 +50,7 @@ struct musb_request {
 	struct musb		*musb;
 	u8 tx;			/* endpoint direction */
 	u8 epnum;
-	u8 mapped;
+	enum buffer_map_state map_state;
 };
 
 static inline struct musb_request *to_musb_request(struct usb_request *req)
@@ -82,6 +88,8 @@ struct musb_ep {
 
 	/* true if lock must be dropped but req_list may not be advanced */
 	u8				busy;
+
+	u8				hb_mult;
 };
 
 static inline struct musb_ep *to_musb_ep(struct usb_ep *ep)
@@ -107,5 +115,7 @@ extern int musb_gadget_setup(struct musb *);
 extern void musb_gadget_cleanup(struct musb *);
 
 extern void musb_g_giveback(struct musb_ep *, struct usb_request *, int);
+
+extern void musb_ep_restart(struct musb *, struct musb_request *);
 
 #endif		/* __MUSB_GADGET_H */

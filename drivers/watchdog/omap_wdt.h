@@ -38,14 +38,24 @@
 #define OMAP_WATCHDOG_LDR		(0x2c)
 #define OMAP_WATCHDOG_TGR		(0x30)
 #define OMAP_WATCHDOG_WPS		(0x34)
+#define OMAP_WATCHDOG_WDLY		(0x44)
 #define OMAP_WATCHDOG_SPR		(0x48)
+#define OMAP_WATCHDOG_WIRQSTAT		(0x58)
+#define OMAP_WATCHDOG_WIRQENSET		(0x5c)
+#define OMAP_WATCHDOG_WIRQENCLR		(0x60)
 
 /* Using the prescaler, the OMAP watchdog could go for many
  * months before firing.  These limits work without scaling,
  * with the 60 second default assumed by most tools and docs.
  */
-#define TIMER_MARGIN_MAX    	(24 * 60 * 60)	/* 1 day */
+#define TIMER_MARGIN_MAX	(24 * 60 * 60)	/* 1 day */
+
+#ifdef CONFIG_MACH_LGE
+#define TIMER_MARGIN_DEFAULT	120	/* 120 secs */
+#else
 #define TIMER_MARGIN_DEFAULT	60	/* 60 secs */
+#endif
+
 #define TIMER_MARGIN_MIN	1
 
 #define PTV			0	/* prescale */

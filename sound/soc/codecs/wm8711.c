@@ -25,7 +25,6 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 #include <sound/tlv.h>
 #include <sound/initval.h>
 
@@ -34,8 +33,6 @@
 /* codec private data */
 struct wm8711_priv {
 	enum snd_soc_control_type bus_type;
-	void *control_data;
-	u16 reg_cache[WM8711_CACHEREGNUM];
 	unsigned int sysclk;
 };
 
@@ -80,7 +77,7 @@ SND_SOC_DAPM_OUTPUT("ROUT"),
 SND_SOC_DAPM_OUTPUT("RHPOUT"),
 };
 
-static const struct snd_soc_dapm_route intercon[] = {
+static const struct snd_soc_dapm_route wm8711_intercon[] = {
 	/* output mixer */
 	{"Output Mixer", "Line Bypass Switch", "Line Input"},
 	{"Output Mixer", "HiFi Playback Switch", "DAC"},
@@ -91,16 +88,6 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"LHPOUT", NULL, "Output Mixer"},
 	{"LOUT", NULL, "Output Mixer"},
 };
-
-static int wm8711_add_widgets(struct snd_soc_codec *codec)
-{
-	snd_soc_dapm_new_controls(codec->dapm, wm8711_dapm_widgets,
-				  ARRAY_SIZE(wm8711_dapm_widgets));
-
-	snd_soc_dapm_add_routes(codec->dapm, intercon, ARRAY_SIZE(intercon));
-
-	return 0;
-}
 
 struct _coeff_div {
 	u32 mclk;
@@ -163,7 +150,7 @@ static int wm8711_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_codec *codec = dai->codec;
 	struct wm8711_priv *wm8711 =  snd_soc_codec_get_drvdata(codec);
-	u16 iface = snd_soc_read(codec, WM8711_IFACE) & 0xfffc;
+	u16 iface = snd_soc_read(codec, WM8711_IFACE) & 0xfff3;
 	int i = get_coeff(wm8711->sysclk, params_rate(params));
 	u16 srate = (coeff_div[i].sr << 2) |
 		(coeff_div[i].bosr << 1) | coeff_div[i].usb;
@@ -244,7 +231,7 @@ static int wm8711_set_dai_fmt(struct snd_soc_dai *codec_dai,
 		unsigned int fmt)
 {
 	struct snd_soc_codec *codec = codec_dai->codec;
-	u16 iface = 0;
+	u16 iface = snd_soc_read(codec, WM8711_IFACE) & 0x000c;
 
 	/* set master/slave audio interface */
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
@@ -319,7 +306,7 @@ static int wm8711_set_bias_level(struct snd_soc_codec *codec,
 		snd_soc_write(codec, WM8711_PWR, 0xffff);
 		break;
 	}
-	codec->dapm->bias_level = level;
+	codec->dapm.bias_level = level;
 	return 0;
 }
 
@@ -378,7 +365,6 @@ static int wm8711_probe(struct snd_soc_codec *codec)
 	struct wm8711_priv *wm8711 = snd_soc_codec_get_drvdata(codec);
 	int ret, reg;
 
-	codec->control_data = wm8711->control_data;
 	ret = snd_soc_codec_set_cache_io(codec, 7, 9, wm8711->bus_type);
 	if (ret < 0) {
 		dev_err(codec->dev, "Failed to set cache I/O: %d\n", ret);
@@ -401,7 +387,6 @@ static int wm8711_probe(struct snd_soc_codec *codec)
 
 	snd_soc_add_controls(codec, wm8711_snd_controls,
 			     ARRAY_SIZE(wm8711_snd_controls));
-	wm8711_add_widgets(codec);
 
 	return ret;
 
@@ -420,9 +405,13 @@ static struct snd_soc_codec_driver soc_codec_dev_wm8711 = {
 	.suspend =	wm8711_suspend,
 	.resume =	wm8711_resume,
 	.set_bias_level = wm8711_set_bias_level,
-	.reg_cache_size = sizeof(wm8711_reg),
+	.reg_cache_size = ARRAY_SIZE(wm8711_reg),
 	.reg_word_size = sizeof(u16),
 	.reg_cache_default = wm8711_reg,
+	.dapm_widgets = wm8711_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(wm8711_dapm_widgets),
+	.dapm_routes = wm8711_intercon,
+	.num_dapm_routes = ARRAY_SIZE(wm8711_intercon),
 };
 
 #if defined(CONFIG_SPI_MASTER)
@@ -436,7 +425,6 @@ static int __devinit wm8711_spi_probe(struct spi_device *spi)
 		return -ENOMEM;
 
 	spi_set_drvdata(spi, wm8711);
-	wm8711->control_data = spi;
 	wm8711->bus_type = SND_SOC_SPI;
 
 	ret = snd_soc_register_codec(&spi->dev,
@@ -456,7 +444,6 @@ static int __devexit wm8711_spi_remove(struct spi_device *spi)
 static struct spi_driver wm8711_spi_driver = {
 	.driver = {
 		.name	= "wm8711-codec",
-		.bus	= &spi_bus_type,
 		.owner	= THIS_MODULE,
 	},
 	.probe		= wm8711_spi_probe,
@@ -476,7 +463,6 @@ static __devinit int wm8711_i2c_probe(struct i2c_client *client,
 		return -ENOMEM;
 
 	i2c_set_clientdata(client, wm8711);
-	wm8711->control_data = client;
 	wm8711->bus_type = SND_SOC_I2C;
 
 	ret =  snd_soc_register_codec(&client->dev,

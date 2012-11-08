@@ -17,7 +17,6 @@
 #include <linux/slab.h>
 #include <linux/kernel.h>
 #include <linux/device.h>
-#include <linux/usb/android_composite.h>
 
 #include "u_serial.h"
 #include "gadget_chips.h"
@@ -97,10 +96,15 @@ static inline struct f_acm *port_to_acm(struct gserial *p)
 /*-------------------------------------------------------------------------*/
 
 /* notification endpoint uses smallish and infrequent fixed-size messages */
-
+/* LGE_SJIT_S 10/21/2011 [mohamed.khadri@lge.com] LG Gadget driver  */
 #define GS_LOG2_NOTIFY_INTERVAL		5	/* 1 << 5 == 32 msec */
-#define GS_NOTIFY_MAXPACKET		10	/* notification + 2 bytes */
-
+#if defined(CONFIG_LGE_ANDROID_USB)
+/* LGE host Drvier Notify Size Fix */
+#define GS_NOTIFY_MAXPACKET		16	/* notification + 2 bytes */
+#else
+#define GS_NOTIFY_MAXPACKET             10      /* notification + 2 bytes */
+#endif
+/* LGE_SJIT_E 10/21/2011 [mohamed.khadri@lge.com] LG Gadget driver  */
 /* interface and class descriptors: */
 
 static struct usb_interface_assoc_descriptor
@@ -112,7 +116,7 @@ acm_iad_descriptor = {
 	.bInterfaceCount = 	2,	// control + data
 	.bFunctionClass =	USB_CLASS_COMM,
 	.bFunctionSubClass =	USB_CDC_SUBCLASS_ACM,
-	.bFunctionProtocol =	USB_CDC_PROTO_NONE,
+	.bFunctionProtocol =	USB_CDC_ACM_PROTO_AT_V25TER,
 	/* .iFunction =		DYNAMIC */
 };
 
@@ -335,7 +339,7 @@ static int acm_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 	case ((USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE) << 8)
 			| USB_CDC_REQ_SET_LINE_CODING:
 		if (w_length != sizeof(struct usb_cdc_line_coding)
-				/*|| w_index != acm->ctrl_id*/)
+				|| w_index != acm->ctrl_id)
 			goto invalid;
 
 		value = w_length;
@@ -346,8 +350,8 @@ static int acm_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 	/* GET_LINE_CODING ... return what host sent, or initial value */
 	case ((USB_DIR_IN | USB_TYPE_CLASS | USB_RECIP_INTERFACE) << 8)
 			| USB_CDC_REQ_GET_LINE_CODING:
-//		if (w_index != acm->ctrl_id)
-//			goto invalid;
+		if (w_index != acm->ctrl_id)
+			goto invalid;
 
 		value = min_t(unsigned, w_length,
 				sizeof(struct usb_cdc_line_coding));
@@ -357,8 +361,8 @@ static int acm_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 	/* SET_CONTROL_LINE_STATE ... save what the host sent */
 	case ((USB_DIR_OUT | USB_TYPE_CLASS | USB_RECIP_INTERFACE) << 8)
 			| USB_CDC_REQ_SET_CONTROL_LINE_STATE:
-//		if (w_index != acm->ctrl_id)
-//			goto invalid;
+		if (w_index != acm->ctrl_id)
+			goto invalid;
 
 		value = 0;
 
@@ -698,6 +702,7 @@ acm_unbind(struct usb_configuration *c, struct usb_function *f)
 		usb_free_descriptors(f->hs_descriptors);
 	usb_free_descriptors(f->descriptors);
 	gs_free_req(acm->notify, acm->notify_req);
+	kfree(acm->port.func.name);
 	kfree(acm);
 }
 
@@ -769,7 +774,11 @@ int acm_bind_config(struct usb_configuration *c, u8 port_num)
 	acm->port.disconnect = acm_disconnect;
 	acm->port.send_break = acm_send_break;
 
-	acm->port.func.name = "acm";
+	acm->port.func.name = kasprintf(GFP_KERNEL, "acm%u", port_num);
+	if (!acm->port.func.name) {
+		kfree(acm);
+		return -ENOMEM;
+	}
 	acm->port.func.strings = acm_strings;
 	/* descriptors are per-instance copies */
 	acm->port.func.bind = acm_bind;
@@ -778,40 +787,8 @@ int acm_bind_config(struct usb_configuration *c, u8 port_num)
 	acm->port.func.setup = acm_setup;
 	acm->port.func.disable = acm_disable;
 
-	/* start disabled */
-	acm->port.func.disabled = 1;
-
 	status = usb_add_function(c, &acm->port.func);
 	if (status)
 		kfree(acm);
 	return status;
 }
-
-#ifdef CONFIG_USB_ANDROID_ACM
-
-int acm_function_bind_config(struct usb_configuration *c)
-{
-	int ret = acm_bind_config(c, 0);
-// LGE_UPDATE_S hunsoo.lee
-#if !defined(CONFIG_LGE_ANDRIOD_USB)
-	if (ret == 0)
-		gserial_setup(c->cdev->gadget, 1);
-#endif 
-// LGE_UPDATE_E
-	return ret;
-}
-
-static struct android_usb_function acm_function = {
-	.name = "acm",
-	.bind_config = acm_function_bind_config,
-};
-
-static int __init init(void)
-{
-	printk(KERN_INFO "f_acm init\n");
-	android_register_function(&acm_function);
-	return 0;
-}
-module_init(init);
-
-#endif /* CONFIG_USB_ANDROID_ACM */

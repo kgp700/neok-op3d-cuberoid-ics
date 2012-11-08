@@ -12,7 +12,6 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 #include <asm/io.h>
 
 #define IPSEL 0xFE400034
@@ -23,7 +22,7 @@ extern struct snd_soc_platform_driver sh7760_soc_platform;
 
 static int machine_init(struct snd_soc_pcm_runtime *rtd)
 {
-	snd_soc_dapm_sync(rtd->codec);
+	snd_soc_dapm_sync(&rtd->codec->dapm);
 	return 0;
 }
 
@@ -52,8 +51,8 @@ static int __init sh7760_ac97_init(void)
 	unsigned short ipsel;
 
 	/* enable both AC97 controllers in pinmux reg */
-	ipsel = ctrl_inw(IPSEL);
-	ctrl_outw(ipsel | (3 << 10), IPSEL);
+	ipsel = __raw_readw(IPSEL);
+	__raw_writew(ipsel | (3 << 10), IPSEL);
 
 	ret = -ENOMEM;
 	sh7760_ac97_snd_device = platform_device_alloc("soc-audio", -1);

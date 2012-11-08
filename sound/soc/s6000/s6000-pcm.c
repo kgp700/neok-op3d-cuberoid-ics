@@ -443,10 +443,11 @@ static void s6000_pcm_free(struct snd_pcm *pcm)
 
 static u64 s6000_pcm_dmamask = DMA_BIT_MASK(32);
 
-static int s6000_pcm_new(struct snd_soc_pcm_runtime *rtd)
+static int s6000_pcm_new(struct snd_soc_pcm_runtime *runtime)
 {
-	struct snd_card *card = rtd->card->snd_card;
-	struct snd_pcm *pcm = rtd->pcm;
+	struct snd_card *card = runtime->card->snd_card;
+	struct snd_soc_dai *dai = runtime->cpu_dai;
+	struct snd_pcm *pcm = runtime->pcm;
 	struct s6000_pcm_dma_params *params;
 	int res;
 
@@ -473,7 +474,7 @@ static int s6000_pcm_new(struct snd_soc_pcm_runtime *rtd)
 	}
 
 	res = request_irq(params->irq, s6000_pcm_irq, IRQF_SHARED,
-			  s6000_soc_platform.name, pcm);
+			  "s6000-audio", pcm);
 	if (res) {
 		printk(KERN_ERR "s6000-pcm couldn't get IRQ\n");
 		return res;

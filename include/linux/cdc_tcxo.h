@@ -58,7 +58,12 @@ struct cdc_tcxo_platform_data {
 	char buf[4];
 };
 
+#ifdef CONFIG_CDC_TCXO
 int cdc_tcxo_set_req_int(int clk_id, int enable);
 int cdc_tcxo_set_req_prio(int clk_id, int req_prio);
+#else
+int cdc_tcxo_set_req_int(int clk_id, int enable) { return 0; }
+int cdc_tcxo_set_req_prio(int clk_id, int req_prio) { return 0; }
+#endif
 
 #endif /* _LINUX_CDC_TCXO_H_ */

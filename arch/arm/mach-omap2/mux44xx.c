@@ -534,6 +534,12 @@ static struct omap_mux __initdata omap4_core_muxmodes[] = {
 	_OMAP4_MUXENTRY(DPM_EMU19, 191, "dpm_emu19", "dmtimer11_pwm_evt",
 			"dsi2_te1", "gpio_191", "rfbi_data0", "dispc2_data0",
 			"hw_dbg19", "reserved"),
+#if !defined(CONFIG_MACH_LGE_CX2_SU870) //##hwcho_20120413
+	_OMAP4_MUXENTRY(CSI22_DX2, 0, "csi22_dx2", NULL, "cam2_fid",
+			NULL, NULL, NULL, NULL, "safe_mode"),
+	_OMAP4_MUXENTRY(CSI22_DY2, 0, "csi22_dy2", NULL, "cam2_wen",
+			NULL, NULL, NULL, NULL, "safe_mode"),
+#endif //##
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
 
@@ -544,7 +550,7 @@ static struct omap_mux __initdata omap4_core_muxmodes[] = {
  */
 #if defined(CONFIG_OMAP_MUX) && defined(CONFIG_DEBUG_FS)		\
 		&& defined(CONFIG_OMAP_PACKAGE_CBL)
-struct omap_ball __initdata omap4_core_cbl_ball[] = {
+static struct omap_ball __initdata omap4_core_cbl_ball[] = {
 	_OMAP4_BALLENTRY(GPMC_AD0, "c12", NULL),
 	_OMAP4_BALLENTRY(GPMC_AD1, "d12", NULL),
 	_OMAP4_BALLENTRY(GPMC_AD2, "c13", NULL),
@@ -748,6 +754,10 @@ struct omap_ball __initdata omap4_core_cbl_ball[] = {
 	_OMAP4_BALLENTRY(DPM_EMU17, "ab3", NULL),
 	_OMAP4_BALLENTRY(DPM_EMU18, "ab4", NULL),
 	_OMAP4_BALLENTRY(DPM_EMU19, "ac4", NULL),
+#if !defined(CONFIG_MACH_LGE_CX2_SU870) //##hwcho_20120413
+	_OMAP4_BALLENTRY(CSI22_DX2, "n27", NULL),
+	_OMAP4_BALLENTRY(CSI22_DY2, "m27", NULL),
+#endif //##
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
 #else
@@ -755,9 +765,10 @@ struct omap_ball __initdata omap4_core_cbl_ball[] = {
 #endif
 
 /*
- * Superset of all mux modes for omap4 ES2.0
+ * Signals different on ES2.0 compared to superset
  */
-static struct omap_mux __initdata omap4_es2_core_muxmodes[] = {
+static struct omap_mux __initdata omap4_es2_core_subset[] = {
+#if defined(CONFIG_MACH_LGE_CX2_SU870) //##hwcho_20120413
 	_OMAP4_MUXENTRY(GPMC_AD0, 0, "gpmc_ad0", "sdmmc2_dat0", NULL, NULL,
 			NULL, NULL, NULL, NULL),
 	_OMAP4_MUXENTRY(GPMC_AD1, 0, "gpmc_ad1", "sdmmc2_dat1", NULL, NULL,
@@ -774,6 +785,7 @@ static struct omap_mux __initdata omap4_es2_core_muxmodes[] = {
 			"sdmmc2_dir_cmd", NULL, NULL, NULL, NULL, NULL),
 	_OMAP4_MUXENTRY(GPMC_AD7, 0, "gpmc_ad7", "sdmmc2_dat7",
 			"sdmmc2_clk_fdbk", NULL, NULL, NULL, NULL, NULL),
+#endif //##
 	_OMAP4_MUXENTRY(GPMC_AD8, 32, "gpmc_ad8", "kpd_row0", "c2c_data15",
 			"gpio_32", NULL, "sdmmc1_dat0", NULL, NULL),
 	_OMAP4_MUXENTRY(GPMC_AD9, 33, "gpmc_ad9", "kpd_row1", "c2c_data14",
@@ -792,6 +804,7 @@ static struct omap_mux __initdata omap4_es2_core_muxmodes[] = {
 			"gpio_39", NULL, "sdmmc1_dat7", NULL, NULL),
 	_OMAP4_MUXENTRY(GPMC_A16, 40, "gpmc_a16", "kpd_row4", "c2c_datain0",
 			"gpio_40", "venc_656_data0", NULL, NULL, "safe_mode"),
+#if defined(CONFIG_MACH_LGE_CX2_SU870) //##hwcho_20120413
 	_OMAP4_MUXENTRY(GPMC_A17, 41, "gpmc_a17", "kpd_row5", "c2c_datain1",
 			"gpio_41", "venc_656_data1", NULL, NULL, "safe_mode"),
 	_OMAP4_MUXENTRY(GPMC_A18, 42, "gpmc_a18", "kpd_row6", "c2c_datain2",
@@ -806,26 +819,32 @@ static struct omap_mux __initdata omap4_es2_core_muxmodes[] = {
 			"gpio_46", "venc_656_data6", NULL, NULL, "safe_mode"),
 	_OMAP4_MUXENTRY(GPMC_A23, 47, "gpmc_a23", "kpd_col7", "c2c_datain7",
 			"gpio_47", "venc_656_data7", NULL, NULL, "safe_mode"),
+#endif
 	_OMAP4_MUXENTRY(GPMC_A24, 48, "gpmc_a24", "kpd_col8", "c2c_clkout0",
 			"gpio_48", NULL, NULL, NULL, "safe_mode"),
+#if defined(CONFIG_MACH_LGE_CX2_SU870) //##hwcho_20120413
 	_OMAP4_MUXENTRY(GPMC_A25, 49, "gpmc_a25", NULL, "c2c_clkout1",
 			"gpio_49", NULL, NULL, NULL, "safe_mode"),
 	_OMAP4_MUXENTRY(GPMC_NCS0, 50, "gpmc_ncs0", NULL, NULL, "gpio_50",
 			"sys_ndmareq0", NULL, NULL, NULL),
 	_OMAP4_MUXENTRY(GPMC_NCS1, 51, "gpmc_ncs1", NULL, "c2c_dataout6",
 			"gpio_51", NULL, NULL, NULL, "safe_mode"),
+#endif //##
 	_OMAP4_MUXENTRY(GPMC_NCS2, 52, "gpmc_ncs2", "kpd_row8",
 			"c2c_dataout7", "gpio_52", NULL, NULL, NULL,
 			"safe_mode"),
+#if defined(CONFIG_MACH_LGE_CX2_SU870) //##hwcho_20120413
 	_OMAP4_MUXENTRY(GPMC_NCS3, 53, "gpmc_ncs3", "gpmc_dir",
 			"c2c_dataout4", "gpio_53", NULL, NULL, NULL,
 			"safe_mode"),
 	_OMAP4_MUXENTRY(GPMC_NWP, 54, "gpmc_nwp", "dsi1_te0", NULL, "gpio_54",
 			"sys_ndmareq1", NULL, NULL, NULL),
+#endif //##
 	_OMAP4_MUXENTRY(GPMC_CLK, 55, "gpmc_clk", NULL, NULL, "gpio_55",
 			"sys_ndmareq2", "sdmmc1_cmd", NULL, NULL),
 	_OMAP4_MUXENTRY(GPMC_NADV_ALE, 56, "gpmc_nadv_ale", "dsi1_te1", NULL,
 			"gpio_56", "sys_ndmareq3", "sdmmc1_clk", NULL, NULL),
+#if defined(CONFIG_MACH_LGE_CX2_SU870) //##hwcho_20120413
 	_OMAP4_MUXENTRY(GPMC_NOE, 0, "gpmc_noe", "sdmmc2_clk", NULL, NULL,
 			NULL, NULL, NULL, NULL),
 	_OMAP4_MUXENTRY(GPMC_NWE, 0, "gpmc_nwe", "sdmmc2_cmd", NULL, NULL,
@@ -838,6 +857,7 @@ static struct omap_mux __initdata omap4_es2_core_muxmodes[] = {
 			"gpio_61", NULL, NULL, NULL, NULL),
 	_OMAP4_MUXENTRY(GPMC_WAIT1, 62, "gpmc_wait1", NULL, "c2c_dataout2",
 			"gpio_62", NULL, NULL, NULL, "safe_mode"),
+#endif //##
 	_OMAP4_MUXENTRY(GPMC_WAIT2, 100, "gpmc_wait2", "usbc1_icusb_txen",
 			"c2c_dataout3", "gpio_100", "sys_ndmareq0", NULL,
 			NULL, "safe_mode"),
@@ -851,6 +871,7 @@ static struct omap_mux __initdata omap4_es2_core_muxmodes[] = {
 	_OMAP4_MUXENTRY(GPMC_NCS7, 104, "gpmc_ncs7", "dsi2_te1",
 			"c2c_dataout1", "gpio_104", NULL, NULL, NULL,
 			"safe_mode"),
+#if defined(CONFIG_MACH_LGE_CX2_SU870) //##hwcho_20120413
 	_OMAP4_MUXENTRY(HDMI_HPD, 63, "hdmi_hpd", NULL, NULL, "gpio_63", NULL,
 			NULL, NULL, "safe_mode"),
 	_OMAP4_MUXENTRY(HDMI_CEC, 64, "hdmi_cec", NULL, NULL, "gpio_64", NULL,
@@ -907,6 +928,7 @@ static struct omap_mux __initdata omap4_es2_core_muxmodes[] = {
 			"hsi1_acready", "mcbsp4_fsx", "gpio_87",
 			"usbb1_ulpiphy_nxt", "usbb1_mm_rxdm", "hw_dbg23",
 			"safe_mode"),
+#endif //##
 	_OMAP4_MUXENTRY(USBB1_ULPITLL_DAT0, 88, "usbb1_ulpitll_dat0",
 			"hsi1_acwake", "mcbsp4_clkx", "gpio_88",
 			"usbb1_ulpiphy_dat0", "usbb1_mm_txen", "hw_dbg24",
@@ -922,6 +944,7 @@ static struct omap_mux __initdata omap4_es2_core_muxmodes[] = {
 	_OMAP4_MUXENTRY(USBB1_ULPITLL_DAT3, 91, "usbb1_ulpitll_dat3",
 			"hsi1_caready", NULL, "gpio_91", "usbb1_ulpiphy_dat3",
 			"usbb1_mm_rxrcv", "hw_dbg27", "safe_mode"),
+#if defined(CONFIG_MACH_LGE_CX2_SU870) //##hwcho_20120413
 	_OMAP4_MUXENTRY(USBB1_ULPITLL_DAT4, 92, "usbb1_ulpitll_dat4",
 			"dmtimer8_pwm_evt", "abe_mcbsp3_dr", "gpio_92",
 			"usbb1_ulpiphy_dat4", NULL, "hw_dbg28", "safe_mode"),
@@ -1000,6 +1023,7 @@ static struct omap_mux __initdata omap4_es2_core_muxmodes[] = {
 			NULL, NULL, NULL, NULL, NULL, "safe_mode"),
 	_OMAP4_MUXENTRY(ABE_CLKS, 118, "abe_clks", NULL, NULL, "gpio_118",
 			NULL, NULL, NULL, "safe_mode"),
+#endif //##
 	_OMAP4_MUXENTRY(ABE_DMIC_CLK1, 119, "abe_dmic_clk1", NULL, NULL,
 			"gpio_119", "usbb2_mm_txse0", "uart4_cts", NULL,
 			"safe_mode"),
@@ -1012,6 +1036,7 @@ static struct omap_mux __initdata omap4_es2_core_muxmodes[] = {
 	_OMAP4_MUXENTRY(ABE_DMIC_DIN3, 122, "abe_dmic_din3", "slimbus2_data",
 			"abe_dmic_clk2", "gpio_122", NULL, "dmtimer9_pwm_evt",
 			NULL, "safe_mode"),
+#if defined(CONFIG_MACH_LGE_CX2_SU870) //##hwcho_20120413
 	_OMAP4_MUXENTRY(UART2_CTS, 123, "uart2_cts", "sdmmc3_clk", NULL,
 			"gpio_123", NULL, NULL, NULL, "safe_mode"),
 	_OMAP4_MUXENTRY(UART2_RTS, 124, "uart2_rts", "sdmmc3_cmd", NULL,
@@ -1064,6 +1089,7 @@ static struct omap_mux __initdata omap4_es2_core_muxmodes[] = {
 	_OMAP4_MUXENTRY(UART3_TX_IRTX, 144, "uart3_tx_irtx",
 			"dmtimer9_pwm_evt", NULL, "gpio_144", NULL, NULL,
 			NULL, "safe_mode"),
+#endif //##
 	_OMAP4_MUXENTRY(SDMMC5_CLK, 145, "sdmmc5_clk", "mcspi2_clk",
 			"usbc1_icusb_dp", "gpio_145", NULL, "sdmmc2_clk",
 			NULL, "safe_mode"),
@@ -1096,9 +1122,11 @@ static struct omap_mux __initdata omap4_es2_core_muxmodes[] = {
 			"gpio_155", NULL, NULL, NULL, "safe_mode"),
 	_OMAP4_MUXENTRY(UART4_TX, 156, "uart4_tx", "sdmmc4_dat1", "kpd_col8",
 			"gpio_156", NULL, NULL, NULL, "safe_mode"),
+#if defined(CONFIG_MACH_LGE_CX2_SU870) //##hwcho_20120413
 	_OMAP4_MUXENTRY(USBB2_ULPITLL_CLK, 157, "usbb2_ulpitll_clk",
 			"usbb2_ulpiphy_clk", "sdmmc4_cmd", "gpio_157",
 			"hsi2_cawake", NULL, NULL, "safe_mode"),
+#endif //##
 	_OMAP4_MUXENTRY(USBB2_ULPITLL_STP, 158, "usbb2_ulpitll_stp",
 			"usbb2_ulpiphy_stp", "sdmmc4_clk", "gpio_158",
 			"hsi2_cadata", "dispc2_data23", NULL, "safe_mode"),
@@ -1140,10 +1168,12 @@ static struct omap_mux __initdata omap4_es2_core_muxmodes[] = {
 			"usbb2_ulpiphy_dat7", "sdmmc3_clk", "gpio_168",
 			"mcspi3_clk", "dispc2_data11", "rfbi_data11",
 			"safe_mode"),
+#if defined(CONFIG_MACH_LGE_CX2_SU870) //##hwcho_20120413
 	_OMAP4_MUXENTRY(USBB2_HSIC_DATA, 169, "usbb2_hsic_data", NULL, NULL,
 			"gpio_169", NULL, NULL, NULL, "safe_mode"),
 	_OMAP4_MUXENTRY(USBB2_HSIC_STROBE, 170, "usbb2_hsic_strobe", NULL,
 			NULL, "gpio_170", NULL, NULL, NULL, "safe_mode"),
+#endif //##
 	_OMAP4_MUXENTRY(KPD_COL3, 171, "kpd_col3", "kpd_col0", NULL,
 			"gpio_171", NULL, NULL, NULL, "safe_mode"),
 	_OMAP4_MUXENTRY(KPD_COL4, 172, "kpd_col4", "kpd_col1", NULL,
@@ -1168,12 +1198,15 @@ static struct omap_mux __initdata omap4_es2_core_muxmodes[] = {
 			NULL, NULL, NULL, "safe_mode"),
 	_OMAP4_MUXENTRY(KPD_ROW2, 3, "kpd_row2", "kpd_row5", NULL, "gpio_3",
 			NULL, NULL, NULL, "safe_mode"),
+#if defined(CONFIG_MACH_LGE_CX2_SU870) //##hwcho_20120413
 	_OMAP4_MUXENTRY(USBA0_OTG_CE, 0, "usba0_otg_ce", NULL, NULL, NULL,
 			NULL, NULL, NULL, NULL),
+#endif //##
 	_OMAP4_MUXENTRY(USBA0_OTG_DP, 0, "usba0_otg_dp", "uart3_rx_irrx",
 			"uart2_rx", NULL, NULL, NULL, NULL, "safe_mode"),
 	_OMAP4_MUXENTRY(USBA0_OTG_DM, 0, "usba0_otg_dm", "uart3_tx_irtx",
 			"uart2_tx", NULL, NULL, NULL, NULL, "safe_mode"),
+#if defined(CONFIG_MACH_LGE_CX2_SU870) //##hwcho_20120413
 	_OMAP4_MUXENTRY(FREF_CLK1_OUT, 181, "fref_clk1_out", NULL, NULL,
 			"gpio_181", NULL, NULL, NULL, "safe_mode"),
 	_OMAP4_MUXENTRY(FREF_CLK2_OUT, 182, "fref_clk2_out", NULL, NULL,
@@ -1198,6 +1231,7 @@ static struct omap_mux __initdata omap4_es2_core_muxmodes[] = {
 			NULL, "hw_dbg0", "safe_mode"),
 	_OMAP4_MUXENTRY(DPM_EMU1, 12, "dpm_emu1", NULL, NULL, "gpio_12", NULL,
 			NULL, "hw_dbg1", "safe_mode"),
+#endif //##
 	_OMAP4_MUXENTRY(DPM_EMU2, 13, "dpm_emu2", "usba0_ulpiphy_clk", NULL,
 			"gpio_13", NULL, "dispc2_fid", "hw_dbg2",
 			"safe_mode"),
@@ -1262,7 +1296,7 @@ static struct omap_mux __initdata omap4_es2_core_muxmodes[] = {
  */
 #if defined(CONFIG_OMAP_MUX) && defined(CONFIG_DEBUG_FS)		\
 		&& defined(CONFIG_OMAP_PACKAGE_CBS)
-struct omap_ball __initdata omap4_core_cbs_ball[] = {
+static struct omap_ball __initdata omap4_core_cbs_ball[] = {
 	_OMAP4_BALLENTRY(GPMC_AD0, "c12", NULL),
 	_OMAP4_BALLENTRY(GPMC_AD1, "d12", NULL),
 	_OMAP4_BALLENTRY(GPMC_AD2, "c13", NULL),
@@ -1546,7 +1580,7 @@ static struct omap_mux __initdata omap4_wkup_muxmodes[] = {
  */
 #if defined(CONFIG_OMAP_MUX) && defined(CONFIG_DEBUG_FS)		\
 		&& defined(CONFIG_OMAP_PACKAGE_CBL)
-struct omap_ball __initdata omap4_wkup_cbl_cbs_ball[] = {
+static struct omap_ball __initdata omap4_wkup_cbl_cbs_ball[] = {
 	_OMAP4_BALLENTRY(SIM_IO, "h4", NULL),
 	_OMAP4_BALLENTRY(SIM_CLK, "j2", NULL),
 	_OMAP4_BALLENTRY(SIM_RESET, "g2", NULL),
@@ -1581,26 +1615,29 @@ struct omap_ball __initdata omap4_wkup_cbl_cbs_ball[] = {
 #define omap4_wkup_cbl_cbs_ball  NULL
 #endif
 
-int __init omap4_mux_init(struct omap_board_mux *board_subset, int flags)
+int __init omap4_mux_init(struct omap_board_mux *board_subset,
+	struct omap_board_mux *board_wkup_subset, int flags)
 {
 	struct omap_ball *package_balls_core;
 	struct omap_ball *package_balls_wkup = omap4_wkup_cbl_cbs_ball;
 	struct omap_mux *core_muxmodes;
+	struct omap_mux *core_subset = NULL;
 	int ret;
 
 	switch (flags & OMAP_PACKAGE_MASK) {
 	case OMAP_PACKAGE_CBL:
-		pr_debug("mux: OMAP4430 ES1.0 -> OMAP_PACKAGE_CBL\n");
+		pr_debug("%s: OMAP4430 ES1.0 -> OMAP_PACKAGE_CBL\n", __func__);
 		package_balls_core = omap4_core_cbl_ball;
 		core_muxmodes = omap4_core_muxmodes;
 		break;
 	case OMAP_PACKAGE_CBS:
-		pr_debug("mux: OMAP4430 ES2.X -> OMAP_PACKAGE_CBS\n");
+		pr_debug("%s: OMAP4430 ES2.X -> OMAP_PACKAGE_CBS\n", __func__);
 		package_balls_core = omap4_core_cbs_ball;
-		core_muxmodes = omap4_es2_core_muxmodes;
+		core_muxmodes = omap4_core_muxmodes;
+		core_subset = omap4_es2_core_subset;
 		break;
 	default:
-		pr_err("mux: Unknown omap package, mux disabled\n");
+		pr_err("%s: Unknown omap package, mux disabled\n", __func__);
 		return -EINVAL;
 	}
 
@@ -1608,7 +1645,7 @@ int __init omap4_mux_init(struct omap_board_mux *board_subset, int flags)
 			    OMAP_MUX_GPIO_IN_MODE3,
 			    OMAP4_CTRL_MODULE_PAD_CORE_MUX_PBASE,
 			    OMAP4_CTRL_MODULE_PAD_CORE_MUX_SIZE,
-			    core_muxmodes, NULL, board_subset,
+			    core_muxmodes, core_subset, board_subset,
 			    package_balls_core);
 	if (ret)
 		return ret;
@@ -1617,7 +1654,7 @@ int __init omap4_mux_init(struct omap_board_mux *board_subset, int flags)
 			    OMAP_MUX_GPIO_IN_MODE3,
 			    OMAP4_CTRL_MODULE_PAD_WKUP_MUX_PBASE,
 			    OMAP4_CTRL_MODULE_PAD_WKUP_MUX_SIZE,
-			    omap4_wkup_muxmodes, NULL, board_subset,
+			    omap4_wkup_muxmodes, NULL, board_wkup_subset,
 			    package_balls_wkup);
 
 	return ret;

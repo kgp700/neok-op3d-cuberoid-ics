@@ -22,7 +22,6 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 
 #include <asm/mach-types.h>
 #include <mach/hardware.h>
@@ -99,10 +98,8 @@ static int __init omap3evm_soc_init(void)
 {
 	int ret;
 
-	if (!machine_is_omap3evm()) {
-		pr_err("Not OMAP3 EVM!\n");
+	if (!machine_is_omap3evm())
 		return -ENODEV;
-	}
 	pr_info("OMAP3 EVM SoC init\n");
 
 	omap3evm_snd_device = platform_device_alloc("soc-audio", -1);

@@ -17,44 +17,54 @@
  */
 #include <linux/init.h>
 #include <linux/device.h>
+#include <linux/delay.h>
 #include <linux/smp.h>
+#include <linux/hrtimer.h>
 #include <linux/io.h>
 
 #include <asm/cacheflush.h>
-#include <asm/localtimer.h>
+#include <asm/hardware/gic.h>
 #include <asm/smp_scu.h>
 #include <mach/hardware.h>
 #include <mach/omap4-common.h>
-#include <plat/clockdomain.h>
+
+#include "clockdomain.h"
 
 /* SCU base address */
-void __iomem *scu_base;
-
-/*
- * Use SCU config register to count number of cores
- */
-static inline unsigned int get_core_count(void)
-{
-	if (scu_base)
-		return scu_get_core_count(scu_base);
-	return 1;
-}
+static void __iomem *scu_base;
 
 static DEFINE_SPINLOCK(boot_lock);
 
+
+void __iomem *omap4_get_scu_base(void)
+{
+	return scu_base;
+}
+
 void __cpuinit platform_secondary_init(unsigned int cpu)
 {
-	trace_hardirqs_off();
+	u32 diag0_errata_flags = 0;
+	/* Enable NS access to SMP bit for this CPU on HS devices */
+	if (cpu_is_omap446x() || cpu_is_omap443x()) {
+		if (omap_type() != OMAP2_DEVICE_TYPE_GP)
+			omap4_secure_dispatcher(PPA_SERVICE_DEFAULT_POR_NS_SMP,
+					FLAG_START_CRITICAL,
+					0, 0, 0, 0, 0);
+		else {
+			diag0_errata_flags =
+				omap4_get_diagctrl0_errata_flags();
+			if (diag0_errata_flags)
+				omap_smc1(HAL_DIAGREG_0, diag0_errata_flags);
+		}
 
-	/* Enable NS access to SMP bit */
-	omap4_secure_dispatcher(PPA_SERVICE_NS_SMP, 4, 0, 0, 0, 0, 0);
+	}
 
 	/*
 	 * If any interrupts are already enabled for the primary
 	 * core (e.g. timer irq), then they will not have been enabled
 	 * for us: do so
 	 */
-	gic_cpu_init(0, gic_cpu_base_addr);
+	gic_secondary_init(0);
 
 	/*
 	 * Synchronise with the boot thread.
@@ -65,8 +75,9 @@ void __cpuinit platform_secondary_init(unsigned int cpu)
 
 int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
-	struct clockdomain *cpu1_clkdm;
+	static struct clockdomain *cpu1_clkdm;
 	static bool booted;
+
 	/*
 	 * Set synchronisation state between this boot processor
 	 * and the secondary one
@@ -83,19 +94,54 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	flush_cache_all();
 	smp_wmb();
 
+	if (!cpu1_clkdm)
+		cpu1_clkdm = clkdm_lookup("mpu1_clkdm");
+
 	/*
-	 * SGI isn't wakeup capable from low power states. This is
-	 * known limitation and can be worked around by using software
-	 * forced wake-up. After the wakeup, the CPU will restore it
-	 * to hw_auto. This code also gets initialised but pm init code
-	 * initialises the CPUx clockdomain to hw-auto mode
+	 * The SGI(Software Generated Interrupts) are not wakeup capable
+	 * from low power states. This is known limitation on OMAP4 and
+	 * needs to be worked around by using software forced clockdomain
+	 * wake-up. To wakeup CPU1, CPU0 forces the CPU1 clockdomain to
+	 * software force wakeup. After the wakeup, CPU1 restores its
+	 * clockdomain hardware supervised mode.
+	 * More details can be found in OMAP4430 TRM - Version J
+	 * Section :
+	 *	4.3.4.2 Power States of CPU0 and CPU1
 	 */
 	if (booted) {
-		cpu1_clkdm = clkdm_lookup("mpu1_clkdm");
-		omap2_clkdm_wakeup(cpu1_clkdm);
-		smp_cross_call(cpumask_of(cpu));
+		/*
+		 * GIC distributor control register has changed between
+		 * CortexA9 r1pX and r2pX. The Control Register secure
+		 * banked version is now composed of 2 bits:
+		 * bit 0 == Secure Enable
+		 * bit 1 == Non-Secure Enable
+		 * The Non-Secure banked register has not changed
+		 * Because the ROM Code is based on the r1pX GIC, the CPU1
+		 * GIC restoration will cause a problem to CPU0 Non-Secure SW.
+		 * The workaround must be:
+		 * 1) Before doing the CPU1 wakeup, CPU0 must disable
+		 * the GIC distributor
+		 * 2) CPU1 must re-enable the GIC distributor on
+		 * it's wakeup path.
+		 */
+		if (!cpu_is_omap443x()) {
+			local_irq_disable();
+			gic_dist_disable();
+		}
+
+		clkdm_wakeup(cpu1_clkdm);
+
+		if (!cpu_is_omap443x()) {
+			while (gic_dist_disabled()) {
+				udelay(1);
+				cpu_relax();
+			}
+			gic_timer_retrigger();
+			local_irq_enable();
+		}
+
 	} else {
-		set_event();
+		dsb_sev();
 		booted = true;
 	}
 
@@ -123,8 +169,7 @@ static void __init wakeup_secondary(void)
 	 * Send a 'sev' to wake the secondary core from WFE.
 	 * Drain the outstanding writes to memory
 	 */
-	dsb();
-	set_event();
+	dsb_sev();
 	mb();
 }
 
@@ -140,25 +185,9 @@ void __init smp_init_cpus(void)
 	scu_base = ioremap(OMAP44XX_SCU_BASE, SZ_256);
 	BUG_ON(!scu_base);
 
-	ncores = get_core_count();
-
-	for (i = 0; i < ncores; i++)
-		set_cpu_possible(i, true);
-}
-
-void __init smp_prepare_cpus(unsigned int max_cpus)
-{
-	unsigned int ncores = get_core_count();
-	unsigned int cpu = smp_processor_id();
-	int i;
+	ncores = scu_get_core_count(scu_base);
 
 	/* sanity check */
-	if (ncores == 0) {
-		printk(KERN_ERR
-		       "OMAP4: strange core count of 0? Default to 1\n");
-		ncores = 1;
-	}
-
 	if (ncores > NR_CPUS) {
 		printk(KERN_WARNING
 		       "OMAP4: no. of cores (%d) greater than configured "
@@ -166,13 +195,16 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 		       ncores, NR_CPUS);
 		ncores = NR_CPUS;
 	}
-	smp_store_cpu_info(cpu);
 
-	/*
-	 * are we trying to boot more cores than exist?
-	 */
-	if (max_cpus > ncores)
-		max_cpus = ncores;
+	for (i = 0; i < ncores; i++)
+		set_cpu_possible(i, true);
+
+	set_smp_cross_call(gic_raise_softirq);
+}
+
+void __init platform_smp_prepare_cpus(unsigned int max_cpus)
+{
+	int i;
 
 	/*
 	 * Initialise the present map, which describes the set of CPUs
@@ -181,18 +213,10 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 	for (i = 0; i < max_cpus; i++)
 		set_cpu_present(i, true);
 
-	if (max_cpus > 1) {
-		/*
-		 * Enable the local timer or broadcast device for the
-		 * boot CPU, but only if we have more than one CPU.
-		 */
-		percpu_timer_setup();
-
-		/*
-		 * Initialise the SCU and wake up the secondary core using
-		 * wakeup_secondary().
-		 */
-		scu_enable(scu_base);
-		wakeup_secondary();
-	}
+	/*
+	 * Initialise the SCU and wake up the secondary core using
+	 * wakeup_secondary().
+	 */
+	scu_enable(scu_base);
+	wakeup_secondary();
 }

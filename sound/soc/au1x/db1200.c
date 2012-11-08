@@ -13,7 +13,6 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 #include <asm/mach-au1x00/au1000.h>
 #include <asm/mach-au1x00/au1xxx_psc.h>
 #include <asm/mach-au1x00/au1xxx_dbdma.h>
@@ -27,10 +26,10 @@
 static struct snd_soc_dai_link db1200_ac97_dai = {
 	.name		= "AC97",
 	.stream_name	= "AC97 HiFi",
-	.cpu_dai_name	= "au1xpsc-ac97-dai",
 	.codec_dai_name	= "ac97-hifi",
-	.platform_name	=  "au1xpsc-pcm-audio",
-	.codec_name	= "ac97-codec",
+	.cpu_dai_name	= "au1xpsc_ac97.1",
+	.platform_name	= "au1xpsc-pcm.1",
+	.codec_name	= "ac97-codec.1",
 };
 
 static struct snd_soc_card db1200_ac97_machine = {
@@ -49,7 +48,7 @@ static int db1200_i2s_startup(struct snd_pcm_substream *substream)
 	int ret;
 
 	/* WM8731 has its own 12MHz crystal */
-	snd_soc_dai_set_sysclk(codec_dai, WM8731_SYSCLK,
+	snd_soc_dai_set_sysclk(codec_dai, WM8731_SYSCLK_XTAL,
 				12000000, SND_SOC_CLOCK_IN);
 
 	/* codec is bitclock and lrclk master */
@@ -75,10 +74,10 @@ static struct snd_soc_ops db1200_i2s_wm8731_ops = {
 static struct snd_soc_dai_link db1200_i2s_dai = {
 	.name		= "WM8731",
 	.stream_name	= "WM8731 PCM",
-	.cpu_dai_name	= &au1xpsc_i2s_dai,
-	.codec_dai_name	= &wm8731_dai,
-	.platform_name	= &au1xpsc_soc_platform,
-	.codec_name	= &soc_codec_dev_wm8731,
+	.codec_dai_name	= "wm8731-hifi",
+	.cpu_dai_name	= "au1xpsc_i2s.1",
+	.platform_name	= "au1xpsc-pcm.1",
+	.codec_name	= "wm8731.0-001b",
 	.ops		= &db1200_i2s_wm8731_ops,
 };
 
@@ -97,7 +96,7 @@ static int __init db1200_audio_load(void)
 	int ret;
 
 	ret = -ENOMEM;
-	db1200_asoc_dev = platform_device_alloc("soc-audio", -1);
+	db1200_asoc_dev = platform_device_alloc("soc-audio", 1); /* PSC1 */
 	if (!db1200_asoc_dev)
 		goto out;
 

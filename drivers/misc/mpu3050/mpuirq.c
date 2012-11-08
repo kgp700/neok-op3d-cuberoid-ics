@@ -37,6 +37,7 @@
 #include <linux/wait.h>
 #include <linux/uaccess.h>
 #include <linux/io.h>
+//#include <linux/gpio.h> //eugene.goh
 
 #include "mpu.h"
 #include "mpuirq.h"
@@ -156,9 +157,6 @@ static long mpuirq_ioctl(struct file *file,
 	case MPUIRQ_SET_FREQUENCY_DIVIDER:
 		mpuirq_dev_data.accel_divider = arg;
 		break;
-  case MPUIRQ_SET_WAKE_UP:
-      wake_up_interruptible(&mpuirq_wait);
-      break;
 	default:
 		retval = -EINVAL;
 	}
@@ -282,7 +280,7 @@ int mpuirq_init(struct i2c_client *mpu_client)
 
 		res =
 		    request_irq(mpuirq_dev_data.irq, mpuirq_handler, flags,
-				interface, &mpuirq_dev_data.irq);
+				interface, &mpuirq_dev_data.irq); //eugene.goh
 		if (res) {
 			dev_err(&mpu_client->adapter->dev,
 				"myirqtest: cannot register IRQ %d\n",

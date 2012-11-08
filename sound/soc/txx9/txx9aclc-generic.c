@@ -24,7 +24,7 @@
 static struct snd_soc_dai_link txx9aclc_generic_dai = {
 	.name = "AC97",
 	.stream_name = "AC97 HiFi",
-	.cpu_dai_name = "txx9aclc-ac97-dai",
+	.cpu_dai_name = "txx9aclc-ac97",
 	.codec_dai_name = "ac97-hifi",
 	.platform_name	= "txx9aclc-pcm-audio",
 	.codec_name	= "ac97-codec",

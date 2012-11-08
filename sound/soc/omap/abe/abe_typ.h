@@ -1,62 +1,64 @@
 /*
- *
- * This file is provided under a dual BSD/GPLv2 license.  When using or
- * redistributing this file, you may do so under either license.
- *
- * GPL LICENSE SUMMARY
- *
- * Copyright(c) 2010-2011 Texas Instruments Incorporated,
- * All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of version 2 of the GNU General Public License as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
- * The full GNU General Public License is included in this distribution
- * in the file called LICENSE.GPL.
- *
- * BSD LICENSE
- *
- * Copyright(c) 2010-2011 Texas Instruments Incorporated,
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * * Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * * Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *   distribution.
- * * Neither the name of Texas Instruments Incorporated nor the names of
- *   its contributors may be used to endorse or promote products derived
- *   from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- */
+
+  This file is provided under a dual BSD/GPLv2 license.  When using or
+  redistributing this file, you may do so under either license.
+
+  GPL LICENSE SUMMARY
+
+  Copyright(c) 2010-2011 Texas Instruments Incorporated,
+  All rights reserved.
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of version 2 of the GNU General Public License as
+  published by the Free Software Foundation.
+
+  This program is distributed in the hope that it will be useful, but
+  WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
+  The full GNU General Public License is included in this distribution
+  in the file called LICENSE.GPL.
+
+  BSD LICENSE
+
+  Copyright(c) 2010-2011 Texas Instruments Incorporated,
+  All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions
+  are met:
+
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in
+      the documentation and/or other materials provided with the
+      distribution.
+    * Neither the name of Texas Instruments Incorporated nor the names of
+      its contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+
 #include "abe_def.h"
 #include "abe_initxxx_labels.h"
+
 #ifndef _ABE_TYP_H_
 #define _ABE_TYP_H_
 /*
@@ -71,6 +73,8 @@
 #define u16 unsigned short
 #define s32 int
 #define u32 unsigned int
+/* returned status from HAL APIs */
+#define abehal_status u32
 /* 4 bytes    Bit field indicating the type of informations to be traced */
 typedef u32 abe_dbg_mask_t;
 /* scheduling task loops (250us / 272us with respectively 48kHz /
@@ -178,20 +182,20 @@ typedef u32 abe_patch_rev;
 /*
  *	PORT IDs, this list is aligned with the FW data mapping
  */
-#define DMIC_PORT 0
-#define PDM_UL_PORT 1
-#define BT_VX_UL_PORT 2
-#define MM_UL_PORT 3
-#define MM_UL2_PORT 4
-#define VX_UL_PORT 5
-#define MM_DL_PORT 6
-#define VX_DL_PORT 7
-#define TONES_DL_PORT 8
-#define VIB_DL_PORT 9
-#define BT_VX_DL_PORT 10
-#define PDM_DL_PORT 11
-#define MM_EXT_OUT_PORT 12
-#define MM_EXT_IN_PORT 13
+#define OMAP_ABE_DMIC_PORT 0
+#define OMAP_ABE_PDM_UL_PORT 1
+#define OMAP_ABE_BT_VX_UL_PORT 2
+#define OMAP_ABE_MM_UL_PORT 3
+#define OMAP_ABE_MM_UL2_PORT 4
+#define OMAP_ABE_VX_UL_PORT 5
+#define OMAP_ABE_MM_DL_PORT 6
+#define OMAP_ABE_VX_DL_PORT 7
+#define OMAP_ABE_TONES_DL_PORT 8
+#define OMAP_ABE_VIB_DL_PORT 9
+#define OMAP_ABE_BT_VX_DL_PORT 10
+#define OMAP_ABE_PDM_DL_PORT 11
+#define OMAP_ABE_MM_EXT_OUT_PORT 12
+#define OMAP_ABE_MM_EXT_IN_PORT 13
 #define TDM_DL_PORT 14
 #define TDM_UL_PORT 15
 #define DEBUG_PORT 16
@@ -380,51 +384,7 @@ typedef u32 abe_patch_rev;
 /*
  *	-----------------   TYPES USED FOR APIS  ---------------
  */
-/*
- *	HARDWARE CONFIG TYPE
- */
-typedef struct {
-	/* EVENT_GENERATOR_COUNTER_DEFAULT gives about 96kHz */
-	u32 AESS_EVENT_GENERATOR_COUNTER__COUNTER_VALUE;
-	/* 0: DMAreq, 1:Counter */
-	u32 AESS_EVENT_SOURCE_SELECTION__SELECTION;
-	/* 5bits DMAreq selection */
-	u32 AESS_AUDIO_ENGINE_SCHEDULER__DMA_REQ_SELECTION;
-	u32 HAL_EVENT_SELECTION;
-	/* 0: 96kHz   1:192kHz */
-	u32 MCPDM_CTRL__DIV_SEL;
-	/* 0: no command in the FIFO,
-	1: 6 data on each line (with commands) */
-	u32 MCPDM_CTRL__CMD_INT;
-	/* 0:MSB aligned  1:LSB aligned */
-	u32 MCPDM_CTRL__PDMOUTFORMAT;
-	u32 MCPDM_CTRL__PDM_DN5_EN;
-	u32 MCPDM_CTRL__PDM_DN4_EN;
-	u32 MCPDM_CTRL__PDM_DN3_EN;
-	u32 MCPDM_CTRL__PDM_DN2_EN;
-	u32 MCPDM_CTRL__PDM_DN1_EN;
-	u32 MCPDM_CTRL__PDM_UP3_EN;
-	u32 MCPDM_CTRL__PDM_UP2_EN;
-	u32 MCPDM_CTRL__PDM_UP1_EN;
-	u32 MCPDM_FIFO_CTRL_DN__DN_TRESH;
-	u32 MCPDM_FIFO_CTRL_UP__UP_TRESH;
-	/* 0:2.4MHz  1:3.84MHz */
-	u32 DMIC_CTRL__DMIC_CLK_DIV;
-	/* 0:MSB aligned  1:LSB aligned */
-	u32 DMIC_CTRL__DMICOUTFORMAT;
-	u32 DMIC_CTRL__DMIC_UP3_EN;
-	u32 DMIC_CTRL__DMIC_UP2_EN;
-	u32 DMIC_CTRL__DMIC_UP1_EN;
-	/* 1*(DMIC_UP1_EN+ 2+ 3)*2 OCP read access every 96/88.1 KHz. */
-	u32 DMIC_FIFO_CTRL__DMIC_TRESH;
-	/* 1:MSB  2:LSB aligned */
-	u32 MCBSP_SPCR1_REG__RJUST;
-	/* 1=MONO, 2=STEREO, 3=TDM_3_CHANNELS, 4=TDM_4_CHANNELS, .... */
-	u32 MCBSP_THRSH2_REG_REG__XTHRESHOLD;
-	/* 1=MONO, 2=STEREO, 3=TDM_3_CHANNELS, 4=TDM_4_CHANNELS, .... */
-	u32 MCBSP_THRSH1_REG_REG__RTHRESHOLD;
-	u32 SLIMBUS_DCT_FIFO_SETUP_REG__SB_THRESHOLD;
-} abe_hw_config_init_t;
+
 /*
  *	EQU_T
  *
@@ -456,16 +416,16 @@ typedef struct {
  *
  *	coefficients of the Acoustics Protection and Safety
  */
-typedef struct {
+struct abe_aps_t {
 	s32 coef1[NBAPS1];
 	s32 coef2[NBAPS2];
-} abe_aps_t;
+};
 
-typedef struct {
+struct abe_aps_energy_t {
 	/* structure of two energy_t estimation for coil and membrane */
 	u32 e1;
 	u32 e2;
-} abe_aps_energy_t;
+};
 /*
  *	ROUTER_T
  *
@@ -690,31 +650,5 @@ typedef struct {
 	u32 sub_id;
 	s32 param[4];
 } abe_subroutine_t;
-/*
- *	ABE_PORT_INFO_T    OPP, subroutines to call on reset
- *
- */
-typedef struct {
-	u32 min_opp;
-	abe_subroutine_t sub1;
-	abe_subroutine_t sub2;
-} abe_port_info_t;
-/*
- *	ABE_FEATURE_T
- *
- */
-typedef struct {
-	u16 enable_with_default_data;
-	u16 disable_feature;
-	u16 read_parameter;
-	u16 write_parameter;
-	u16 running_status;
-	u16 fw_input_buffer_address;
-	u16 fw_output_buffer_address;
-	u16 fw_scheduler_slot_position;
-	u16 fw_scheduler_subslot_position;
-	u32 min_opp;
-	char name[NBCHARFEATURENAME];
-} abe_feature_t;
 
 #endif/* ifndef _ABE_TYP_H_ */

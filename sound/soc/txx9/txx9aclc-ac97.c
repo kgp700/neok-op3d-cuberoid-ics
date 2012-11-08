@@ -218,7 +218,7 @@ static struct platform_driver txx9aclc_ac97_driver = {
 	.probe		= txx9aclc_ac97_dev_probe,
 	.remove		= __devexit_p(txx9aclc_ac97_dev_remove),
 	.driver		= {
-		.name	= "txx9aclc-ac97-dai",
+		.name	= "txx9aclc-ac97",
 		.owner	= THIS_MODULE,
 	},
 };

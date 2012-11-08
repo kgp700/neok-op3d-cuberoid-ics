@@ -21,7 +21,6 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 
 #include <asm/dma.h>
 #include <asm/mach-types.h>
@@ -84,7 +83,7 @@ static struct snd_soc_ops sffsdr_ops = {
 static struct snd_soc_dai_link sffsdr_dai = {
 	.name = "PCM3008", /* Codec name */
 	.stream_name = "PCM3008 HiFi",
-	.cpu_dai_name = "davinci-asp-dai.0",
+	.cpu_dai_name = "davinci-mcbsp",
 	.codec_dai_name = "pcm3008-hifi",
 	.codec_name = "pcm3008-codec",
 	.platform_name = "davinci-pcm-audio",
@@ -107,7 +106,7 @@ static struct pcm3008_setup_data sffsdr_pcm3008_setup = {
 };
 
 struct platform_device pcm3008_codec = {
-		.name = "pcm3008_codec_audio",
+		.name = "pcm3008-codec",
 		.id = 0,
 		.dev = {
 				.platform_data = &sffsdr_pcm3008_setup,
@@ -152,7 +151,7 @@ static int __init sffsdr_init(void)
 					    sffsdr_snd_resources,
 					    ARRAY_SIZE(sffsdr_snd_resources));
 	if (ret) {
-		printk(KERN_ERR "platform device add ressources failed\n");
+		printk(KERN_ERR "platform device add resources failed\n");
 		goto error;
 	}
 

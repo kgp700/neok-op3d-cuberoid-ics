@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Texas Instruments Inc.
+ * Copyright (C) 2010 Texas Instruments Inc.
  *
  * Modified from mach-omap2/board-zoom-peripherals.c
  *
@@ -14,173 +14,95 @@
 #include <linux/gpio.h>
 #include <linux/i2c/twl.h>
 #include <linux/spi/spi.h>
-#include <linux/regulator/machine.h>
-#include <linux/regulator/consumer.h>
-#include <plat/common.h>
-#include <plat/control.h>
 #include <plat/mcspi.h>
-#include <plat/display.h>
+#include <video/omapdss.h>
 
-#define LCD_PANEL_ENABLE_GPIO		(7 + OMAP_MAX_GPIO_LINES)
 #define LCD_PANEL_RESET_GPIO_PROD	96
 #define LCD_PANEL_RESET_GPIO_PILOT	55
 #define LCD_PANEL_QVGA_GPIO		56
-#define TV_PANEL_ENABLE_GPIO		95
 
-struct zoom_dss_board_info {
-	int gpio_flag;
+static struct gpio zoom_lcd_gpios[] __initdata = {
+	{ -EINVAL,		GPIOF_OUT_INIT_HIGH, "lcd reset" },
+	{ LCD_PANEL_QVGA_GPIO,	GPIOF_OUT_INIT_HIGH, "lcd qvga"	 },
 };
 
-static void zoom_lcd_tv_panel_init(void)
+static void __init zoom_lcd_panel_init(void)
 {
-	int ret;
-	unsigned char lcd_panel_reset_gpio;
+	zoom_lcd_gpios[0].gpio = (omap_rev() > OMAP3430_REV_ES3_0) ?
+			LCD_PANEL_RESET_GPIO_PROD :
+			LCD_PANEL_RESET_GPIO_PILOT;
 
-	if (omap_rev() > OMAP3430_REV_ES3_0) {
-		/* Production Zoom2 board:
-		 * GPIO-96 is the LCD_RESET_GPIO
-		 */
-		lcd_panel_reset_gpio = LCD_PANEL_RESET_GPIO_PROD;
-	} else {
-		/* Pilot Zoom2 board:
-		 * GPIO-55 is the LCD_RESET_GPIO
-		 */
-		lcd_panel_reset_gpio = LCD_PANEL_RESET_GPIO_PILOT;
-	}
-
-	ret = gpio_request(lcd_panel_reset_gpio, "lcd reset");
-	if (ret) {
-		pr_err("Failed to get LCD reset GPIO.\n");
-		return;
-	}
-	gpio_direction_output(lcd_panel_reset_gpio, 1);
-
-	ret = gpio_request(LCD_PANEL_QVGA_GPIO, "lcd qvga");
-	if (ret) {
-		pr_err("Failed to get LCD_PANEL_QVGA_GPIO.\n");
-		goto err0;
-	}
-	gpio_direction_output(LCD_PANEL_QVGA_GPIO, 1);
-
-	ret = gpio_request(TV_PANEL_ENABLE_GPIO, "tv panel");
-	if (ret) {
-		pr_err("Failed to get TV_PANEL_ENABLE_GPIO.\n");
-		goto err1;
-	}
-	gpio_direction_output(TV_PANEL_ENABLE_GPIO, 0);
-
-	return;
-
-err1:
-	gpio_free(LCD_PANEL_QVGA_GPIO);
-err0:
-	gpio_free(lcd_panel_reset_gpio);
-
-}
-
-static int zoom_panel_power_enable(int enable)
-{
-	int ret;
-	struct regulator *vdds_dsi_reg;
-
-	vdds_dsi_reg = regulator_get(NULL, "vdds_dsi");
-	if (IS_ERR(vdds_dsi_reg)) {
-		pr_err("Unable to get vdds_dsi regulator\n");
-		return PTR_ERR(vdds_dsi_reg);
-	}
-
-	if (enable)
-		ret = regulator_enable(vdds_dsi_reg);
-	else
-		ret = regulator_disable(vdds_dsi_reg);
-
-	return ret;
+	if (gpio_request_array(zoom_lcd_gpios, ARRAY_SIZE(zoom_lcd_gpios)))
+		pr_err("%s: Failed to get LCD GPIOs.\n", __func__);
 }
 
 static int zoom_panel_enable_lcd(struct omap_dss_device *dssdev)
 {
-	int ret;
-	struct zoom_dss_board_info *pdata;
-
-	ret = zoom_panel_power_enable(1);
-	if (ret < 0)
-		return ret;
-	pdata = dssdev->dev.platform_data;
-	if (pdata->gpio_flag == 0) {
-		ret = gpio_request(LCD_PANEL_ENABLE_GPIO, "lcd enable");
-		if (ret) {
-			pr_err("Failed to get LCD_PANEL_ENABLE_GPIO.\n");
-			return ret;
-		}
-		gpio_direction_output(LCD_PANEL_ENABLE_GPIO, 1);
-		pdata->gpio_flag = 1;
-	} else {
-		gpio_set_value(LCD_PANEL_ENABLE_GPIO, 1);
-	}
-
 	return 0;
 }
 
 static void zoom_panel_disable_lcd(struct omap_dss_device *dssdev)
 {
-	zoom_panel_power_enable(0);
-	gpio_set_value(LCD_PANEL_ENABLE_GPIO, 0);
 }
 
-static int zoom_panel_enable_tv(struct omap_dss_device *dssdev)
-{
-	int ret;
-	struct regulator *vdac_reg;
+/*
+ * PWMA/B register offsets (TWL4030_MODULE_PWMA)
+ */
+#define TWL_INTBR_PMBR1	0xD
+#define TWL_INTBR_GPBR1	0xC
+#define TWL_LED_PWMON	0x0
+#define TWL_LED_PWMOFF	0x1
 
-	vdac_reg = regulator_get(NULL, "vdda_dac");
-	if (IS_ERR(vdac_reg)) {
-		pr_err("Unable to get vdac regulator\n");
-		return PTR_ERR(vdac_reg);
+static int zoom_set_bl_intensity(struct omap_dss_device *dssdev, int level)
+{
+	unsigned char c;
+	u8 mux_pwm, enb_pwm;
+
+	if (level > 100)
+		return -1;
+
+	twl_i2c_read_u8(TWL4030_MODULE_INTBR, &mux_pwm, TWL_INTBR_PMBR1);
+	twl_i2c_read_u8(TWL4030_MODULE_INTBR, &enb_pwm, TWL_INTBR_GPBR1);
+
+	if (level == 0) {
+		/* disable pwm1 output and clock */
+		enb_pwm = enb_pwm & 0xF5;
+		/* change pwm1 pin to gpio pin */
+		mux_pwm = mux_pwm & 0xCF;
+		twl_i2c_write_u8(TWL4030_MODULE_INTBR,
+					enb_pwm, TWL_INTBR_GPBR1);
+		twl_i2c_write_u8(TWL4030_MODULE_INTBR,
+					mux_pwm, TWL_INTBR_PMBR1);
+		return 0;
 	}
-	ret = regulator_enable(vdac_reg);
-	if (ret < 0)
-		return ret;
-	gpio_set_value(TV_PANEL_ENABLE_GPIO, 0);
+
+	if (!((enb_pwm & 0xA) && (mux_pwm & 0x30))) {
+		/* change gpio pin to pwm1 pin */
+		mux_pwm = mux_pwm | 0x30;
+		/* enable pwm1 output and clock*/
+		enb_pwm = enb_pwm | 0x0A;
+		twl_i2c_write_u8(TWL4030_MODULE_INTBR,
+					mux_pwm, TWL_INTBR_PMBR1);
+		twl_i2c_write_u8(TWL4030_MODULE_INTBR,
+					enb_pwm, TWL_INTBR_GPBR1);
+	}
+
+	c = ((50 * (100 - level)) / 100) + 1;
+	twl_i2c_write_u8(TWL4030_MODULE_PWM1, 0x7F, TWL_LED_PWMOFF);
+	twl_i2c_write_u8(TWL4030_MODULE_PWM1, c, TWL_LED_PWMON);
 
 	return 0;
 }
 
-static void zoom_panel_disable_tv(struct omap_dss_device *dssdev)
-{
-	struct regulator *vdac_reg;
-
-	vdac_reg = regulator_get(NULL, "vdda_dac");
-	if (IS_ERR(vdac_reg)) {
-		pr_err("Unable to get vpll2 regulator\n");
-		return;
-	}
-	regulator_disable(vdac_reg);
-	gpio_set_value(TV_PANEL_ENABLE_GPIO, 1);
-}
-
-static struct zoom_dss_board_info zoom_dss_lcd_data = {
-	.gpio_flag = 0,
-};
-
 static struct omap_dss_device zoom_lcd_device = {
-	.name = "lcd",
-	.driver_name = "NEC_8048_panel",
-	.type = OMAP_DISPLAY_TYPE_DPI,
-	.phy.dpi.data_lines = 24,
-	.platform_enable = zoom_panel_enable_lcd,
-	.platform_disable = zoom_panel_disable_lcd,
-	.dev = {
-		.platform_data = &zoom_dss_lcd_data,
-	},
-};
-
-static struct omap_dss_device zoom_tv_device = {
-	.name                   = "tv",
-	.driver_name            = "venc",
-	.type                   = OMAP_DISPLAY_TYPE_VENC,
-	.phy.venc.type          = -1,
-	.platform_enable        = zoom_panel_enable_tv,
-	.platform_disable       = zoom_panel_disable_tv,
+	.name			= "lcd",
+	.driver_name		= "NEC_8048_panel",
+	.type			= OMAP_DISPLAY_TYPE_DPI,
+	.phy.dpi.data_lines	= 24,
+	.platform_enable	= zoom_panel_enable_lcd,
+	.platform_disable	= zoom_panel_disable_lcd,
+	.max_backlight_level	= 100,
+	.set_backlight		= zoom_set_bl_intensity,
 };
 
 static struct omap_dss_device *zoom_dss_devices[] = {
@@ -188,32 +110,31 @@ static struct omap_dss_device *zoom_dss_devices[] = {
 };
 
 static struct omap_dss_board_info zoom_dss_data = {
-	.num_devices = ARRAY_SIZE(zoom_dss_devices),
-	.devices = zoom_dss_devices,
-	.default_device = &zoom_lcd_device,
+	.num_devices		= ARRAY_SIZE(zoom_dss_devices),
+	.devices		= zoom_dss_devices,
+	.default_device		= &zoom_lcd_device,
 };
 
 static struct omap2_mcspi_device_config dss_lcd_mcspi_config = {
-	.turbo_mode             = 0,
-	.single_channel         = 1,  /* 0: slave, 1: master */
+	.turbo_mode		= 1,
+	.single_channel	= 1,  /* 0: slave, 1: master */
 };
 
 static struct spi_board_info nec_8048_spi_board_info[] __initdata = {
 	[0] = {
-		.modalias               = "nec_8048_spi",
-		.bus_num                = 1,
-		.chip_select            = 2,
-		.max_speed_hz           = 375000,
-		.controller_data        = &dss_lcd_mcspi_config,
+		.modalias		= "nec_8048_spi",
+		.bus_num		= 1,
+		.chip_select		= 2,
+		.max_speed_hz		= 375000,
+		.controller_data	= &dss_lcd_mcspi_config,
 	},
 };
 
-void __init zoom_display_init(enum omap_dss_venc_type venc_type)
+void __init zoom_display_init(void)
 {
-	zoom_tv_device.phy.venc.type = venc_type;
 	omap_display_init(&zoom_dss_data);
 	spi_register_board_info(nec_8048_spi_board_info,
 				ARRAY_SIZE(nec_8048_spi_board_info));
-	zoom_lcd_tv_panel_init();
+	zoom_lcd_panel_init();
 }
 

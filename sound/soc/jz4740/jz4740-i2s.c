@@ -28,7 +28,6 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 #include <sound/initval.h>
 
 #include "jz4740-i2s.h"
@@ -134,7 +133,7 @@ static void jz4740_i2s_shutdown(struct snd_pcm_substream *substream,
 	struct jz4740_i2s *i2s = snd_soc_dai_get_drvdata(dai);
 	uint32_t conf;
 
-	if (!dai->active)
+	if (dai->active)
 		return;
 
 	conf = jz4740_i2s_read(i2s, JZ_REG_AIC_CONF);
@@ -515,7 +514,7 @@ static struct platform_driver jz4740_i2s_driver = {
 	.probe = jz4740_i2s_dev_probe,
 	.remove = __devexit_p(jz4740_i2s_dev_remove),
 	.driver = {
-		.name = "jz4740-i2s-dai",
+		.name = "jz4740-i2s",
 		.owner = THIS_MODULE,
 	},
 };
@@ -535,4 +534,4 @@ module_exit(jz4740_i2s_exit);
 MODULE_AUTHOR("Lars-Peter Clausen, <lars@metafoo.de>");
 MODULE_DESCRIPTION("Ingenic JZ4740 SoC I2S driver");
 MODULE_LICENSE("GPL");
-MODULE_ALIAS("platform:jz4740-i2s-dai");
+MODULE_ALIAS("platform:jz4740-i2s");

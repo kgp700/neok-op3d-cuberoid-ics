@@ -36,6 +36,42 @@
  */
 #define BQ2415x_RESET_TIMER		0x38
 
+/* BQ24153 / BQ24156 / BQ24158 */
+/* Status/Control Register */
+#define REG_STATUS_CONTROL		0x00
+#define		TIMER_RST		(1 << 7)
+#define		ENABLE_STAT_PIN		(1 << 6)
+
+/* Control Register */
+#define REG_CONTROL_REGISTER		0x01
+#define	INPUT_CURRENT_LIMIT_SHIFT	6
+#define	ENABLE_ITERM_SHIFT		3
+
+/* Control/Battery Voltage Register */
+#define REG_BATTERY_VOLTAGE		0x02
+#define	VOLTAGE_SHIFT			2
+
+/* Vender/Part/Revision Register */
+#define REG_PART_REVISION		0x03
+
+/* Battery Termination/Fast Charge Current Register */
+#define REG_BATTERY_CURRENT		0x04
+#define	BQ24156_CURRENT_SHIFT		3
+#define	BQ24153_CURRENT_SHIFT		4
+
+/* Special Charger Voltage/Enable Pin Status Register */
+#define REG_SPECIAL_CHARGER_VOLTAGE	0x05
+
+/* Safety Limit Register */
+#define REG_SAFETY_LIMIT		0x06
+#define	MAX_CURRENT_SHIFT		4
+
+#define BQ24153 (1 << 3)
+#define BQ24156 (1 << 6)
+#define BQ24158 (1 << 8)
+
+#define BQ2415x_WATCHDOG_TIMEOUT	20000
+
 struct bq2415x_platform_data {
 	int max_charger_currentmA;
 	int max_charger_voltagemV;

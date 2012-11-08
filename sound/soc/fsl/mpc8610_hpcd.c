@@ -13,6 +13,7 @@
 #include <linux/module.h>
 #include <linux/interrupt.h>
 #include <linux/of_device.h>
+#include <linux/slab.h>
 #include <sound/soc.h>
 #include <asm/fsl_guts.h>
 
@@ -52,9 +53,8 @@ struct mpc8610_hpcd_data {
  *
  * Here we program the DMACR and PMUXCR registers.
  */
-static int mpc8610_hpcd_machine_probe(struct platform_device *sound_device)
+static int mpc8610_hpcd_machine_probe(struct snd_soc_card *card)
 {
-	struct snd_soc_card *card = platform_get_drvdata(sound_device);
 	struct mpc8610_hpcd_data *machine_data =
 		container_of(card, struct mpc8610_hpcd_data, card);
 	struct ccsr_guts_86xx __iomem *guts;
@@ -137,9 +137,8 @@ static int mpc8610_hpcd_startup(struct snd_pcm_substream *substream)
  * This function is called to remove the sound device for one SSI.  We
  * de-program the DMACR and PMUXCR register.
  */
-static int mpc8610_hpcd_machine_remove(struct platform_device *sound_device)
+static int mpc8610_hpcd_machine_remove(struct snd_soc_card *card)
 {
-	struct snd_soc_card *card = platform_get_drvdata(sound_device);
 	struct mpc8610_hpcd_data *machine_data =
 		container_of(card, struct mpc8610_hpcd_data, card);
 	struct ccsr_guts_86xx __iomem *guts;
@@ -323,9 +322,10 @@ static int get_dma_channel(struct device_node *ssi_np,
 static int mpc8610_hpcd_probe(struct platform_device *pdev)
 {
 	struct device *dev = pdev->dev.parent;
-	/* of_dev is the OF device for the SSI node that probed us */
-	struct of_device *of_dev = container_of(dev, struct of_device, dev);
-	struct device_node *np = of_dev->dev.of_node;
+	/* ssi_pdev is the platform device for the SSI node that probed us */
+	struct platform_device *ssi_pdev =
+		container_of(dev, struct platform_device, dev);
+	struct device_node *np = ssi_pdev->dev.of_node;
 	struct device_node *codec_np = NULL;
 	struct platform_device *sound_device = NULL;
 	struct mpc8610_hpcd_data *machine_data;
@@ -348,7 +348,7 @@ static int mpc8610_hpcd_probe(struct platform_device *pdev)
 	if (!machine_data)
 		return -ENOMEM;
 
-	machine_data->dai[0].cpu_dai_name = dev_name(&of_dev->dev);
+	machine_data->dai[0].cpu_dai_name = dev_name(&ssi_pdev->dev);
 	machine_data->dai[0].ops = &mpc8610_hpcd_ops;
 
 	/* Determine the codec name, it will be used as the codec DAI name */
@@ -496,6 +496,7 @@ static int mpc8610_hpcd_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "platform device add failed\n");
 		goto error;
 	}
+	dev_set_drvdata(&pdev->dev, sound_device);
 
 	of_node_put(codec_np);
 

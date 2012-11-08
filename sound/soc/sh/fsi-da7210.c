@@ -15,11 +15,20 @@
 
 static int fsi_da7210_init(struct snd_soc_pcm_runtime *rtd)
 {
-	struct snd_soc_dai *dai = rtd->codec_dai;
+	struct snd_soc_dai *codec = rtd->codec_dai;
+	struct snd_soc_dai *cpu = rtd->cpu_dai;
+	int ret;
 
-	return snd_soc_dai_set_fmt(dai,
-				   SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
+	ret = snd_soc_dai_set_fmt(codec,
+				   SND_SOC_DAIFMT_I2S |
 				   SND_SOC_DAIFMT_CBM_CFM);
+	if (ret < 0)
+		return ret;
+
+	ret = snd_soc_dai_set_fmt(cpu, SND_SOC_DAIFMT_I2S |
+				       SND_SOC_DAIFMT_CBS_CFS);
+
+	return ret;
 }
 
 static struct snd_soc_dai_link fsi_da7210_dai = {
@@ -27,13 +36,13 @@ static struct snd_soc_dai_link fsi_da7210_dai = {
 	.stream_name	= "DA7210",
 	.cpu_dai_name	= "fsib-dai", /* FSI B */
 	.codec_dai_name	= "da7210-hifi",
-	.platform_name	= "fsi-pcm-audio",
-	.codec_name	= "da7210-codec.0-0x1a",
+	.platform_name	= "sh_fsi.0",
+	.codec_name	= "da7210-codec.0-001a",
 	.init		= fsi_da7210_init,
 };
 
 static struct snd_soc_card fsi_soc_card = {
-	.name		= "FSI",
+	.name		= "FSI-DA7210",
 	.dai_link	= &fsi_da7210_dai,
 	.num_links	= 1,
 };

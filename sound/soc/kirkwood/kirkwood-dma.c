@@ -2,6 +2,7 @@
  * kirkwood-dma.c
  *
  * (c) 2010 Arnaud Patard <apatard@mandriva.com>
+ * (c) 2010 Arnaud Patard <arnaud.patard@rtp-net.org>
  *
  *  This program is free software; you can redistribute  it and/or modify it
  *  under  the terms of  the GNU General  Public License as published by the
@@ -131,7 +132,7 @@ static int kirkwood_dma_open(struct snd_pcm_substream *substream)
 	priv = snd_soc_dai_get_dma_data(cpu_dai, substream);
 	snd_soc_set_runtime_hwparams(substream, &kirkwood_dma_snd_hw);
 
-	/* Ensure that all constraints linked to dma burst are fullfilled */
+	/* Ensure that all constraints linked to dma burst are fulfilled */
 	err = snd_pcm_hw_constraint_minmax(runtime,
 			SNDRV_PCM_HW_PARAM_BUFFER_BYTES,
 			priv->burst * 2,
@@ -169,7 +170,7 @@ static int kirkwood_dma_open(struct snd_pcm_substream *substream)
 
 		/*
 		 * Enable Error interrupts. We're only ack'ing them but
-		 * it's usefull for diagnostics
+		 * it's useful for diagnostics
 		 */
 		writel((unsigned long)-1, priv->io + KIRKWOOD_ERR_MASK);
 	}
@@ -314,6 +315,7 @@ static int kirkwood_dma_preallocate_dma_buffer(struct snd_pcm *pcm,
 static int kirkwood_dma_new(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_card *card = rtd->card->snd_card;
+	struct snd_soc_dai *dai = rtd->cpu_dai;
 	struct snd_pcm *pcm = rtd->pcm;
 	int ret;
 
@@ -398,7 +400,7 @@ static void __exit kirkwood_pcm_exit(void)
 }
 module_exit(kirkwood_pcm_exit);
 
-MODULE_AUTHOR("Arnaud Patard <apatard@mandriva.com>");
+MODULE_AUTHOR("Arnaud Patard <arnaud.patard@rtp-net.org>");
 MODULE_DESCRIPTION("Marvell Kirkwood Audio DMA module");
 MODULE_LICENSE("GPL");
-
+MODULE_ALIAS("platform:kirkwood-pcm-audio");

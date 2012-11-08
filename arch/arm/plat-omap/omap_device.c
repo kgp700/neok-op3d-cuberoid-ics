@@ -83,23 +83,16 @@
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/clk.h>
+#include <linux/clkdev.h>
+#include <linux/pm_runtime.h>
 
 #include <plat/omap_device.h>
 #include <plat/omap_hwmod.h>
-#include <plat/opp.h>
-#include <plat/voltage.h>
-
-#include <mach/omap4-common.h>
+#include <plat/clock.h>
 
 /* These parameters are passed to _omap_device_{de,}activate() */
 #define USE_WAKEUP_LAT			0
 #define IGNORE_WAKEUP_LAT		1
-
-/*
- * OMAP_DEVICE_MAGIC: used to determine whether a struct omap_device
- * obtained via container_of() is in fact a struct omap_device
- */
-#define OMAP_DEVICE_MAGIC		 0xf00dcafe
 
 /* Private functions */
 
@@ -249,41 +242,87 @@ static inline struct omap_device *_find_by_pdev(struct platform_device *pdev)
 }
 
 /**
- * _add_optional_clock_alias - Add clock alias for hwmod optional clocks
+ * _add_optional_clock_clkdev - Add clkdev entry for hwmod optional clocks
  * @od: struct omap_device *od
  *
  * For every optional clock present per hwmod per omap_device, this function
- * adds an entry in the clocks list of the form <dev-id=dev_name, con-id=role>
- * if an entry is already present in it with the form <dev-id=NULL, con-id=role>
+ * adds an entry in the clkdev table of the form <dev-id=dev_name, con-id=role>
+ * if it does not exist already.
  *
  * The function is called from inside omap_device_build_ss(), after
  * omap_device_register.
  *
  * This allows drivers to get a pointer to its optional clocks based on its role
  * by calling clk_get(<dev*>, <role>).
+ *
+ * No return value.
  */
-static void _add_optional_clock_alias(struct omap_device *od,
+static void _add_optional_clock_clkdev(struct omap_device *od,
 				      struct omap_hwmod *oh)
 {
 	int i;
-	struct omap_hwmod_opt_clk *oc;
 
-	for (i = oh->opt_clks_cnt, oc = oh->opt_clks; i > 0; i--, oc++) {
-		int ret;
+	for (i = 0; i < oh->opt_clks_cnt; i++) {
+		struct omap_hwmod_opt_clk *oc;
+		struct clk *r;
+		struct clk_lookup *l;
 
-		if (!oc->_clk || !IS_ERR(clk_get(&od->pdev.dev, oc->role)))
+		oc = &oh->opt_clks[i];
+
+		if (!oc->_clk)
+			continue;
+
+		r = clk_get_sys(dev_name(&od->pdev.dev), oc->role);
+		if (!IS_ERR(r))
+			continue; /* clkdev entry exists */
+
+		r = omap_clk_get_by_name((char *)oc->clk);
+		if (IS_ERR(r)) {
+			pr_err("omap_device: %s: omap_clk_get_by_name for %s failed\n",
+			       dev_name(&od->pdev.dev), oc->clk);
+			continue;
+		}
+
+		l = clkdev_alloc(r, oc->role, dev_name(&od->pdev.dev));
+		if (!l) {
+			pr_err("omap_device: %s: clkdev_alloc for %s failed\n",
+			       dev_name(&od->pdev.dev), oc->role);
 			return;
-
-		ret = clk_add_alias(oc->role, dev_name(&od->pdev.dev),
-				    (char *)oc->clk, NULL);
-		if (ret)
-			pr_err("omap_device: clk_add_alias for %s failed\n",
-			       oc->role);
+		}
+		clkdev_add(l);
 	}
 }
 
 
 /* Public functions for use by core code */
+
+/**
+ * omap_device_get_context_loss_count - get lost context count
+ * @od: struct omap_device *
+ *
+ * Using the primary hwmod, query the context loss count for this
+ * device.
+ *
+ * Callers should consider context for this device lost any time this
+ * function returns a value different than the value the caller got
+ * the last time it called this function.
+ *
+ * If any hwmods exist for the omap_device assoiated with @pdev,
+ * return the context loss counter for that hwmod, otherwise return
+ * zero.
+ */
+int omap_device_get_context_loss_count(struct platform_device *pdev)
+{
+	struct omap_device *od;
+	u32 ret = 0;
+
+	od = _find_by_pdev(pdev);
+
+	if (od->hwmods_cnt)
+		ret = omap_hwmod_get_context_loss_count(od->hwmods[0]);
+
+	return ret;
+}
 
 /**
  * omap_device_count_resources - count number of struct resource entries needed
@@ -444,22 +483,21 @@ struct omap_device *omap_device_build_ss(const char *pdev_name, int pdev_id,
 	od->pdev.num_resources = res_count;
 	od->pdev.resource = res;
 
-	platform_device_add_data(&od->pdev, pdata, pdata_len);
+	ret = platform_device_add_data(&od->pdev, pdata, pdata_len);
+	if (ret)
+		goto odbs_exit4;
 
 	od->pm_lats = pm_lats;
 	od->pm_lats_cnt = pm_lats_cnt;
-
-	od->magic = OMAP_DEVICE_MAGIC;
 
 	if (is_early_device)
 		ret = omap_early_device_register(od);
 	else
 		ret = omap_device_register(od);
 
-	/* each hwmod has a pointer to its attached omap_device */
 	for (i = 0; i < oh_cnt; i++) {
 		hwmods[i]->od = od;
-		_add_optional_clock_alias(od, hwmods[i]);
+		_add_optional_clock_clkdev(od, hwmods[i]);
 	}
 
 	if (ret)
@@ -499,6 +537,42 @@ int omap_early_device_register(struct omap_device *od)
 	return 0;
 }
 
+static int _od_runtime_suspend(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	int ret;
+
+	ret = pm_generic_runtime_suspend(dev);
+
+	if (!ret)
+		omap_device_idle(pdev);
+
+	return ret;
+}
+
+static int _od_runtime_idle(struct device *dev)
+{
+	return pm_generic_runtime_idle(dev);
+}
+
+static int _od_runtime_resume(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+
+	omap_device_enable(pdev);
+
+	return pm_generic_runtime_resume(dev);
+}
+
+static struct dev_power_domain omap_device_power_domain = {
+	.ops = {
+		.runtime_suspend = _od_runtime_suspend,
+		.runtime_idle = _od_runtime_idle,
+		.runtime_resume = _od_runtime_resume,
+		USE_PLATFORM_PM_SLEEP_OPS
+	}
+};
+
 /**
  * omap_device_register - register an omap_device with one omap_hwmod
  * @od: struct omap_device * to register
@@ -511,6 +585,8 @@ int omap_device_register(struct omap_device *od)
 {
 	pr_debug("omap_device: %s: registering\n", od->pdev.name);
 
+	od->pdev.dev.parent = &omap_device_parent;
+	od->pdev.dev.pwr_domain = &omap_device_power_domain;
 	return platform_device_register(&od->pdev);
 }
 
@@ -625,36 +701,6 @@ int omap_device_shutdown(struct platform_device *pdev)
 }
 
 /**
- * omap_device_reset - reset an omap_device
- * @od: struct omap_device * to reset
- *
- * Reset omap_device @od by reseting all of the underlying omap_hwmods.
- * Used when a driver need to put the HW in a known state after a error
- * Returns -EINVAL if the omap_device is not currently enabled, or passes
- * along the return value of omap_hwmod_reset().
- */
-int omap_device_reset(struct platform_device *pdev)
-{
-	int ret = 0;
-	int i;
-	struct omap_device *od;
-	struct omap_hwmod *oh;
-
-	od = _find_by_pdev(pdev);
-
-	if (od->_state != OMAP_DEVICE_STATE_ENABLED) {
-		WARN(1, "omap_device: %s.%d: %s() called from invalid state %d\n",
-		     od->pdev.name, od->pdev.id, __func__, od->_state);
-		return -EINVAL;
-	}
-
-	for (i = 0, oh = *od->hwmods; i < od->hwmods_cnt; i++, oh++)
-		ret |= omap_hwmod_reset(oh);
-
-	return ret;
-}
-
-/**
  * omap_device_align_pm_lat - activate/deactivate device to match wakeup lat lim
  * @od: struct omap_device *
  *
@@ -691,18 +737,6 @@ int omap_device_align_pm_lat(struct platform_device *pdev,
 		ret = _omap_device_activate(od, USE_WAKEUP_LAT);
 
 	return ret;
-}
-
-/**
- * omap_device_is_valid - Check if pointer is a valid omap_device
- * @od: struct omap_device *
- *
- * Return whether struct omap_device pointer @od points to a valid
- * omap_device.
- */
-bool omap_device_is_valid(struct omap_device *od)
-{
-	return (od && od->magic == OMAP_DEVICE_MAGIC);
 }
 
 /**
@@ -821,155 +855,13 @@ int omap_device_enable_clocks(struct omap_device *od)
 	return 0;
 }
 
-/**
- * omap_device_enable_wakeup - Enable the wakeup bit
- * @od: struct omap_device *od
- *
- * Enable the wakup bit for omap_hwmods associated
- * with the omap_device.  Returns 0.
- */
+struct device omap_device_parent = {
+	.init_name	= "omap",
+	.parent         = &platform_bus,
+};
 
-int omap_device_enable_wakeup(struct omap_device *od)
+static int __init omap_device_init(void)
 {
-	struct omap_hwmod *oh;
-	int i;
-
-	for (i = 0, oh = *od->hwmods; i < od->hwmods_cnt; i++, oh++)
-		omap_hwmod_enable_wakeup(oh);
-
-	/* XXX pass along return value here? */
-	return 0;
+	return device_register(&omap_device_parent);
 }
-
-/**
- * omap_device_disable_wakeup -Disable the wakeup bit
- * @od: struct omap_device *od
- *
- * Disable the wakup bit for omap_hwmods associated
- * with the omap_device.  Returns 0.
- */
-
-
-int omap_device_disable_wakeup(struct omap_device *od)
-{
-	struct omap_hwmod *oh;
-	int i;
-
-	for (i = 0, oh = *od->hwmods; i < od->hwmods_cnt; i++, oh++)
-		omap_hwmod_disable_wakeup(oh);
-
-	/* XXX pass along return value here? */
-	return 0;
-}
-
-/**
- * omap_device_set_rate - Set a new rate at which the device is to operate
- * @req_dev : pointer to the device requesting the scaling.
- * @dev : pointer to the device that is to be scaled
- * @rate : the rnew rate for the device.
- *
- * This API gets the device opp table associated with this device and
- * tries putting the device to the requested rate and the voltage domain
- * associated with the device to the voltage corresponding to the
- * requested rate. Since multiple devices can be assocciated with a
- * voltage domain this API finds out the possible voltage the
- * voltage domain can enter and then decides on the final device
- * rate. Return 0 on success else the error value
- */
-int omap_device_set_rate(struct device *req_dev, struct device *dev,
-			unsigned long rate)
-{
-	struct omap_opp *opp;
-	unsigned long volt, freq, min_freq, max_freq, flags;
-	struct voltagedomain *voltdm;
-	struct platform_device *pdev;
-	struct omap_device *od;
-	int ret;
-
-	pdev = container_of(dev, struct platform_device, dev);
-	od = _find_by_pdev(pdev);
-
-	/* if in low power DPLL cascading mode, bail out early */
-	if (cpu_is_omap44xx()) {
-		read_lock_irqsave(&dpll_cascading_lock, flags);
-
-		if (in_dpll_cascading) {
-			ret = -EINVAL;
-			goto out;
-		}
-	}
-
-	/*
-	 * Figure out if the desired frquency lies between the
-	 * maximum and minimum possible for the particular device
-	 */
-	min_freq = 0;
-	if (IS_ERR(opp_find_freq_ceil(dev, &min_freq))) {
-		dev_err(dev, "%s: Unable to find lowest opp\n", __func__);
-		ret = -ENODEV;
-		goto out;
-	}
-
-	max_freq = ULONG_MAX;
-	if (IS_ERR(opp_find_freq_floor(dev, &max_freq))) {
-		dev_err(dev, "%s: Unable to find highest opp\n", __func__);
-		ret = -ENODEV;
-		goto out;
-	}
-
-	if (rate < min_freq)
-		freq = min_freq;
-	else if (rate > max_freq)
-		freq = max_freq;
-	else
-		freq = rate;
-
-	/* Get the possible rate from the opp layer */
-	opp = opp_find_freq_ceil(dev, &freq);
-	if (IS_ERR(opp)) {
-		dev_dbg(dev, "%s: Unable to find OPP for freq%ld\n",
-			__func__, rate);
-		ret = -ENODEV;
-		goto out;
-	}
-	if (unlikely(freq != rate))
-		dev_dbg(dev, "%s: Available freq %ld != dpll freq %ld.\n",
-			__func__, freq, rate);
-
-	/* Get the voltage corresponding to the requested frequency */
-	volt = opp_get_voltage(opp);
-
-	/*
-	 * Call into the voltage layer to get the final voltage possible
-	 * for the voltage domain associated with the device.
-	 */
-	voltdm = od->hwmods[0]->voltdm;
-	ret = omap_voltage_add_userreq(voltdm, req_dev, &volt);
-	if (ret) {
-		dev_err(dev, "%s: Unable to get the final volt for scaling\n",
-			__func__);
-		goto out;
-	}
-
-	/* Do the actual scaling */
-	ret =  omap_voltage_scale(voltdm, volt);
-out:
-	if (cpu_is_omap44xx())
-		read_unlock_irqrestore(&dpll_cascading_lock, flags);
-
-	return ret;
-}
-EXPORT_SYMBOL(omap_device_set_rate);
-
-/**
- * omap_device_get_rate - Gets the current operating rate of the device
- * @dev - the device pointer
- *
- * This API returns the current operating rate of the device on success.
- * Else returns the error value.
- */
-unsigned long omap_device_get_rate(struct device *dev)
-{
-	return opp_get_rate(dev);
-}
-EXPORT_SYMBOL(omap_device_get_rate);
+core_initcall(omap_device_init);

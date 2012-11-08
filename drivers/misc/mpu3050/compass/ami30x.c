@@ -36,12 +36,12 @@
 #include <linux/module.h>
 #endif
 
+#include <delay.h>
 #include "mpu.h"
 #include "mlsl.h"
 #include "mlos.h"
 
 #include <log.h>
-#include <delay.h>
 #undef MPL_LOG_TAG
 #define MPL_LOG_TAG "MPL-compass"
 
@@ -50,9 +50,9 @@
 #define AMI30X_REG_CNTL1 (0x1B)
 #define AMI30X_REG_CNTL2 (0x1C)
 #define AMI30X_REG_CNTL3 (0x1D)
+
 #define AMI30X_REG_CNTL4_1 (0x5C)
 #define AMI30X_REG_CNTL4_2 (0x5D)
-
 #define AMI30X_BIT_CNTL1_PC1  (0x80)
 #define AMI30X_BIT_CNTL1_ODR1 (0x10)
 #define AMI30X_BIT_CNTL1_FS1  (0x02)
@@ -62,19 +62,12 @@
 #define AMI30X_BIT_CNTL2_DRP  (0x04)
 #define AMI30X_BIT_CNTL3_F0RCE (0x40)
 
-#define AMI306_WINDOW_COTROL
-#if defined(AMI306_WINDOW_COTROL)
-int flag = 0;
-unsigned char offz_val = 0;
-unsigned char offz[3] = {0,0,0};
-#endif
-
 int ami30x_suspend(void *mlsl_handle,
 		   struct ext_slave_descr *slave,
 		   struct ext_slave_platform_data *pdata)
 {
-	int result;
-	unsigned char reg;
+	int result = ML_SUCCESS;
+	unsigned char reg =0;
 	result =
 	    MLSLSerialRead(mlsl_handle, pdata->address, AMI30X_REG_CNTL1,
 			   1, &reg);
@@ -99,51 +92,33 @@ int ami30x_resume(void *mlsl_handle,
 		 0x7E,
 		 0xA0
 	};
-
-#if defined(AMI306_WINDOW_COTROL)
-	if(flag == 0){ /* read OFFZ register */ 
-		result =
-			MLSLSerialRead(mlsl_handle,pdata->address,0x78,1,&offz_val);
-		ERROR_CHECK(result);
-		
-		flag = 1;
-		offz[0] = 0x78; //AMI306_REG_OFFZ
-		offz[1] = offz_val - 10;
-		offz[2] = 0x00;
-	}
-#endif
-	
-	/* Step1. Set CNTL1 reg to power model active (Write CNTL1:PC1=1)*/
+    /* Step1. Set CNTL1 reg to power model active (Write CNTL1:PC1=1) */
 	result =
 	    MLSLSerialWriteSingle(mlsl_handle, pdata->address,
 				  AMI30X_REG_CNTL1,
 				  AMI30X_BIT_CNTL1_PC1|AMI30X_BIT_CNTL1_FS1);
 	ERROR_CHECK(result);
-	/* Step2. Set CNTL2 reg to DRDY active high and enabled (Write CNTL2:DREN=1)*/
+    /* Step2. Set CNTL2 reg to DRDY active high and enabled
+       (Write CNTL2:DREN=1) */
 	result =
 	    MLSLSerialWriteSingle(mlsl_handle, pdata->address,
 				  AMI30X_REG_CNTL2,
 				  AMI30X_BIT_CNTL2_DREN |
 				  AMI30X_BIT_CNTL2_DRP);
 	ERROR_CHECK(result);
-
-	/* Step3. Set CNTL4 reg to for measurement speed (Write CNTL4, 0xA07E) */
+    /* Step3. Set CNTL4 reg to for measurement speed (Write CNTL4, 0xA07E) */
 	result =
 	    MLSLSerialWrite(mlsl_handle, pdata->address, DIM(regs), regs);
 	ERROR_CHECK(result);
 
-	/* Step4. Set OFFZ reg (Write OFFZ, offz_data)*/
-#if defined(AMI306_WINDOW_COTROL)
-	result =
-	    MLSLSerialWrite(mlsl_handle, pdata->address, DIM(offz), offz);
-	ERROR_CHECK(result); //110315//
-#endif
-	/* Step5. Set CNTL3 reg to forced measurement period (Write CNTL3:FORCE=1)*/
-#if 0
+    /* Step4. skipped */
+
+    /* Step5. Set CNTL3 reg to forced measurement period
+       (Write CNTL3:FORCE=1) */
 	result =
 		MLSLSerialWriteSingle(mlsl_handle, pdata->address,
 				  AMI30X_REG_CNTL3, AMI30X_BIT_CNTL3_F0RCE);
-#endif
+
 	return result;
 }
 
@@ -153,7 +128,6 @@ int ami30x_read(void *mlsl_handle,
 {
 	unsigned char stat;
 	int result = ML_SUCCESS;
-	int status = ML_SUCCESS;
 
 	/* Measurement(x,y,z) */
 	result =
@@ -162,29 +136,28 @@ int ami30x_read(void *mlsl_handle,
 				      AMI30X_BIT_CNTL3_F0RCE);
 	ERROR_CHECK(result);
 	udelay(500);
-	
-	/* Step6. Read status reg and check if data ready (DRDY) */
+    /* Step6. Read status reg and check if data ready (DRDY) */
 	result =
 	    MLSLSerialRead(mlsl_handle, pdata->address, AMI30X_REG_STAT1,
 			   1, &stat);
 	ERROR_CHECK(result);
 
-	/* Step6. Does DRDY output the rising edge?*/
-	if (1/*stat & 0x40*/) /*Yes*/
-	{ 
-		int mx, my, mz;
-		int tempX, tempY, tempZ;
+    /* Step6. Does DRDY output the rising edge? */
 
-		mx = my = mz = 0;
-		tempX = tempY = tempZ = 0;
-		
-		/* Step7. Read DATAX(0x10/11),Y(0x12/13),Z(0x14/15) */		
+		/* Step7. Read DATAX(0x10/11),Y(0x12/13),Z(0x14/15) */
 		result =
 		    MLSLSerialRead(mlsl_handle, pdata->address,
 				   AMI30X_REG_DATAX, 6,
 				   (unsigned char *) data);
 
+		ERROR_CHECK(result);
+#if 0
+{
+		int mx, my, mz;
+		int tempX, tempY, tempZ;
 
+		mx = my = mz = 0;
+		tempX = tempY = tempZ = 0;
 		tempX=data[1]; tempY=data[3]; tempZ=data[5];
 
 		mx = tempX << 8 | data[0];	  //upper byte + lower byte
@@ -195,60 +168,11 @@ int ami30x_read(void *mlsl_handle,
 		if (my>32768)  my = my-65536;	  //then subtraction 0x10000(65536)
 		if (mz>32768)  mz = mz-65536;
 
-#if defined(AMI306_WINDOW_COTROL)
-		if(mz>1700)
-		{
-			offz[1] += 5;
-			if(offz[1]>80)
-				offz[1] = 80;
-			result =
-				MLSLSerialWrite(mlsl_handle, pdata->address, DIM(offz), offz);
-			ERROR_CHECK(result);
+		printk("%s 1 [%d][%d][%d] \n",__func__, mx, my,mz);
 
-			/* Measurement(x,y,z) */
-			result =
-				MLSLSerialWriteSingle(mlsl_handle, pdata->address,
-				      AMI30X_REG_CNTL3,
-				      AMI30X_BIT_CNTL3_F0RCE);
-			ERROR_CHECK(result);
-			udelay(500);
-			/* Read DATAX(0x10/11),Y(0x12/13),Z(0x14/15) */		
-			result =
-		    MLSLSerialRead(mlsl_handle, pdata->address,
-				   AMI30X_REG_DATAX, 6,
-				   (unsigned char *) data);
-		}
-		else if(mz<-1700)
-		{
-			offz[1] -= 5;
-			if(offz[1]<10)
-				offz[1] = 10;
-			result =
-				MLSLSerialWrite(mlsl_handle, pdata->address, DIM(offz), offz);
-			ERROR_CHECK(result);
-
-			/* Measurement(x,y,z) */
-			result =
-				MLSLSerialWriteSingle(mlsl_handle, pdata->address,
-				      AMI30X_REG_CNTL3,
-				      AMI30X_BIT_CNTL3_F0RCE);
-			ERROR_CHECK(result);
-			udelay(500);
-			/* Read DATAX(0x10/11),Y(0x12/13),Z(0x14/15) */		
-			result =
-				MLSLSerialRead(mlsl_handle, pdata->address,
-				   AMI30X_REG_DATAX, 6,
-				   (unsigned char *) data);
-
-		}
+}
 #endif
-		ERROR_CHECK(result);
-		status = ML_SUCCESS;	
-	} else if (stat & 0x20) { /*No*/
-		status = ML_ERROR_COMPASS_DATA_OVERFLOW;
-	}
-
-	return status;
+	return result;
 }
 
 struct ext_slave_descr ami30x_descr = {

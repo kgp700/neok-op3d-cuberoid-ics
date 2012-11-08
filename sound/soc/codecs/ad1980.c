@@ -11,6 +11,14 @@
  *  option) any later version.
  */
 
+/*
+ * WARNING:
+ *
+ * Because Analog Devices Inc. discontinued the ad1980 sound chip since
+ * Sep. 2009, this ad1980 driver is not maintained, tested and supported
+ * by ADI now.
+ */
+
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/module.h>
@@ -21,14 +29,8 @@
 #include <sound/ac97_codec.h>
 #include <sound/initval.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 
 #include "ad1980.h"
-
-static unsigned int ac97_read(struct snd_soc_codec *codec,
-	unsigned int reg);
-static int ac97_write(struct snd_soc_codec *codec,
-	unsigned int reg, unsigned int val);
 
 /*
  * AD1980 register cache
@@ -130,7 +132,7 @@ static int ac97_write(struct snd_soc_codec *codec, unsigned int reg,
 	return 0;
 }
 
-struct snd_soc_dai_driver ad1980_dai = {
+static struct snd_soc_dai_driver ad1980_dai = {
 	.name = "ad1980-hifi",
 	.ac97_control = 1,
 	.playback = {
@@ -244,6 +246,7 @@ static struct snd_soc_codec_driver soc_codec_dev_ad1980 = {
 	.remove = 	ad1980_soc_remove,
 	.reg_cache_size = ARRAY_SIZE(ad1980_reg),
 	.reg_word_size = sizeof(u16),
+	.reg_cache_default = ad1980_reg,
 	.reg_cache_step = 2,
 	.write = ac97_write,
 	.read = ac97_read,
@@ -263,7 +266,7 @@ static int __devexit ad1980_remove(struct platform_device *pdev)
 
 static struct platform_driver ad1980_codec_driver = {
 	.driver = {
-			.name = "ad1980-codec",
+			.name = "ad1980",
 			.owner = THIS_MODULE,
 	},
 
@@ -283,6 +286,6 @@ static void __exit ad1980_exit(void)
 }
 module_exit(ad1980_exit);
 
-MODULE_DESCRIPTION("ASoC ad1980 driver");
+MODULE_DESCRIPTION("ASoC ad1980 driver (Obsolete)");
 MODULE_AUTHOR("Roy Huang, Cliff Cai");
 MODULE_LICENSE("GPL");

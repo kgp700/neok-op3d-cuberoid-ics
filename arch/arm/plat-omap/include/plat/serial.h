@@ -27,7 +27,7 @@
  * 2. We assume printascii is called at least once before paging_init,
  *    and addruart has a chance to read OMAP_UART_INFO
  */
-#define OMAP_UART_INFO		(PHYS_OFFSET + 0x3ffc)
+#define OMAP_UART_INFO		(PLAT_PHYS_OFFSET + 0x3ffc)
 
 /* OMAP1 serial ports */
 #define OMAP1_UART1_BASE	0xfffb0000
@@ -50,6 +50,11 @@
 #define OMAP4_UART2_BASE	OMAP2_UART2_BASE
 #define OMAP4_UART3_BASE	0x48020000
 #define OMAP4_UART4_BASE	0x4806e000
+
+/* TI816X serial ports */
+#define TI816X_UART1_BASE	0x48020000
+#define TI816X_UART2_BASE	0x48022000
+#define TI816X_UART3_BASE	0x48024000
 
 /* External port on Zoom2/3 */
 #define ZOOM_UART_BASE		0x10000000
@@ -81,6 +86,9 @@
 #define OMAP4UART2		OMAP2UART2
 #define OMAP4UART3		43
 #define OMAP4UART4		44
+#define TI816XUART1		81
+#define TI816XUART2		82
+#define TI816XUART3		83
 #define ZOOM_UART		95		/* Only on zoom2/3 */
 
 /* This is only used by 8250.c for omap1510 */
@@ -93,17 +101,25 @@
 			})
 
 #ifndef __ASSEMBLER__
+
+struct omap_board_data;
 struct omap_uart_port_info;
-extern void __init omap_serial_early_init(void);
-extern void omap_serial_init(struct omap_uart_port_info *platform_data);
-extern void omap_serial_init_port(int port,
-			struct omap_uart_port_info *platform_data);
-extern int omap_uart_can_sleep(void);
-extern void omap_uart_check_wakeup(void);
-extern void omap_uart_prepare_suspend(void);
-extern void omap_uart_prepare_idle(int num);
-extern void omap_uart_resume_idle(int num);
-extern void omap_uart_enable_irqs(int enable);
+struct omap_device_pad;
+
+extern void omap_serial_init(void);
+extern void omap_serial_board_init(struct omap_uart_port_info *platform_data);
+extern void omap_serial_init_port(struct omap_board_data *bdata,
+		struct omap_uart_port_info *platform_data);
+void __init omap_serial_init_port_pads(int id, struct omap_device_pad *pads,
+	int size, struct omap_uart_port_info *info);
+extern u32 omap_uart_resume_idle(void);
+extern int omap_uart_wake(u8 id);
+extern int omap_uart_enable(u8 uart_num);
+extern int omap_uart_disable(u8 uart_num);
+
+#define MUX_PULL_UP	((1<<8) | (1<<4) | (1<<3) | (7))
+void omap_rts_mux_write(u16 val, int num);
+
 #endif
 
 #endif

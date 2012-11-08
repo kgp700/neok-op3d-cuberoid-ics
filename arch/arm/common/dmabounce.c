@@ -31,7 +31,6 @@
 #include <linux/dmapool.h>
 #include <linux/list.h>
 #include <linux/scatterlist.h>
-#include <linux/highmem.h>
 
 #include <asm/cacheflush.h>
 
@@ -50,8 +49,6 @@ struct safe_buffer {
 
 	/* original request */
 	void		*ptr;
-	struct page	*page;
-	unsigned long	offset;
 	size_t		size;
 	int		direction;
 
@@ -106,8 +103,7 @@ static DEVICE_ATTR(dmabounce_stats, 0400, dmabounce_show, NULL);
 /* allocate a 'safe' buffer and keep track of it */
 static inline struct safe_buffer *
 alloc_safe_buffer(struct dmabounce_device_info *device_info, void *ptr,
-		  struct page *page, unsigned long offset, size_t size,
-		  enum dma_data_direction dir)
+		  size_t size, enum dma_data_direction dir)
 {
 	struct safe_buffer *buf;
 	struct dmabounce_pool *pool;
@@ -132,8 +128,6 @@ alloc_safe_buffer(struct dmabounce_device_info *device_info, void *ptr,
 	}
 
 	buf->ptr = ptr;
-	buf->page = page;
-	buf->offset = offset;
 	buf->size = size;
 	buf->direction = dir;
 	buf->pool = pool;
@@ -225,8 +219,7 @@ static struct safe_buffer *find_safe_buffer_dev(struct device *dev,
 	return find_safe_buffer(dev->archdata.dmabounce, dma_addr);
 }
 
-static inline dma_addr_t map_single_or_page(struct device *dev, void *ptr,
-		struct page *page, unsigned long offset,  size_t size,
+static inline dma_addr_t map_single(struct device *dev, void *ptr, size_t size,
 		enum dma_data_direction dir)
 {
 	struct dmabounce_device_info *device_info = dev->archdata.dmabounce;
@@ -236,17 +229,13 @@ static inline dma_addr_t map_single_or_page(struct device *dev, void *ptr,
 	if (device_info)
 		DO_STATS ( device_info->map_op_count++ );
 
-	if (page)
-		dma_addr = page_to_dma(dev, page) + offset;
-	else
-		dma_addr = virt_to_dma(dev, ptr);
+	dma_addr = virt_to_dma(dev, ptr);
 
 	if (dev->dma_mask) {
 		unsigned long mask = *dev->dma_mask;
 		unsigned long limit;
 
-		limit = (mask - 1) | mask;
-		limit = (limit + 1) & ~limit;
+		limit = (mask + 1) & ~mask;
 		if (limit && size > limit) {
 			dev_err(dev, "DMA mapping too big (requested %#x "
 				"mask %#Lx)\n", size, *dev->dma_mask);
@@ -256,88 +245,42 @@ static inline dma_addr_t map_single_or_page(struct device *dev, void *ptr,
 		/*
 		 * Figure out if we need to bounce from the DMA mask.
 		 */
-		needs_bounce = (dma_addr & ~mask) ||
-			(limit && (dma_addr + size > limit));
+		needs_bounce = (dma_addr | (dma_addr + size - 1)) & ~mask;
 	}
 
 	if (device_info && (needs_bounce || dma_needs_bounce(dev, dma_addr, size))) {
 		struct safe_buffer *buf;
 
-		buf = alloc_safe_buffer(device_info, ptr, page, offset, size, dir);
+		buf = alloc_safe_buffer(device_info, ptr, size, dir);
 		if (buf == 0) {
 			dev_err(dev, "%s: unable to map unsafe buffer %p!\n",
 			       __func__, ptr);
-			return 0;
+			return ~0;
 		}
 
-                if (buf->page)
-			dev_dbg(dev, "%s: unsafe buffer %p (dma=%#x) mapped "
-				"to %p (dma=%#x)\n", __func__,
-				page_address(buf->page),
-				page_to_dma(dev, buf->page),
-				buf->safe, buf->safe_dma_addr);
-		else
-			dev_dbg(dev, "%s: unsafe buffer %p (dma=%#x) mapped "
-				"to %p (dma=%#x)\n", __func__,
-				buf->ptr, virt_to_dma(dev, buf->ptr),
-				buf->safe, buf->safe_dma_addr);
+		dev_dbg(dev,
+			"%s: unsafe buffer %p (dma=%#x) mapped to %p (dma=%#x)\n",
+			__func__, buf->ptr, virt_to_dma(dev, buf->ptr),
+			buf->safe, buf->safe_dma_addr);
 
 		if ((dir == DMA_TO_DEVICE) ||
 		    (dir == DMA_BIDIRECTIONAL)) {
-			if (page)
-				ptr = kmap_atomic(page, KM_BOUNCE_READ) + offset;
 			dev_dbg(dev, "%s: copy unsafe %p to safe %p, size %d\n",
 				__func__, ptr, buf->safe, size);
 			memcpy(buf->safe, ptr, size);
-			wmb();
-			if (page)
-				kunmap_atomic(ptr - offset, KM_BOUNCE_READ);
 		}
+		ptr = buf->safe;
+
 		dma_addr = buf->safe_dma_addr;
 	} else {
 		/*
 		 * We don't need to sync the DMA buffer since
 		 * it was allocated via the coherent allocators.
 		 */
-		if (page)
-			__dma_page_cpu_to_dev(page, offset, size, dir);
-		else
-			__dma_single_cpu_to_dev(ptr, size, dir);
+		__dma_single_cpu_to_dev(ptr, size, dir);
 	}
 
 	return dma_addr;
-}
-
-static inline void unmap_page(struct device *dev, dma_addr_t dma_addr,
-		size_t size, enum dma_data_direction dir)
-{
-	struct safe_buffer *buf = find_safe_buffer_dev(dev, dma_addr, "unmap");
-
-	if (buf) {
-		BUG_ON(buf->size != size);
-		BUG_ON(buf->direction != dir);
-		BUG_ON(!buf->page);
-		BUG_ON(buf->ptr);
-
-		dev_dbg(dev,
-			"%s: unsafe buffer %p (dma=%#x) mapped to %p (dma=%#x)\n",
-			__func__, page_address(buf->page),
-			page_to_dma(dev, buf->page),
-			buf->safe, buf->safe_dma_addr);
-
-		DO_STATS(dev->archdata.dmabounce->bounce_count++);
-		if (dir == DMA_FROM_DEVICE || dir == DMA_BIDIRECTIONAL) {
-			void *ptr;
-			ptr = kmap_atomic(buf->page, KM_BOUNCE_READ) + buf->offset;
-			memcpy(ptr, buf->safe, size);
-			__cpuc_flush_dcache_area(ptr, size);
-			kunmap_atomic(ptr - buf->offset, KM_BOUNCE_READ);
-		}
-		free_safe_buffer(dev->archdata.dmabounce, buf);
-	} else {
-		__dma_page_dev_to_cpu(dma_to_page(dev, dma_addr),
-			      dma_addr & ~PAGE_MASK, size, dir);
-	}
 }
 
 static inline void unmap_single(struct device *dev, dma_addr_t dma_addr,
@@ -348,8 +291,6 @@ static inline void unmap_single(struct device *dev, dma_addr_t dma_addr,
 	if (buf) {
 		BUG_ON(buf->size != size);
 		BUG_ON(buf->direction != dir);
-		BUG_ON(buf->page);
-		BUG_ON(!buf->ptr);
 
 		dev_dbg(dev,
 			"%s: unsafe buffer %p (dma=%#x) mapped to %p (dma=%#x)\n",
@@ -387,7 +328,7 @@ static inline void unmap_single(struct device *dev, dma_addr_t dma_addr,
  * substitute the safe buffer for the unsafe one.
  * (basically move the buffer from an unsafe area to a safe one)
  */
-dma_addr_t dma_map_single(struct device *dev, void *ptr, size_t size,
+dma_addr_t __dma_map_single(struct device *dev, void *ptr, size_t size,
 		enum dma_data_direction dir)
 {
 	dev_dbg(dev, "%s(ptr=%p,size=%d,dir=%x)\n",
@@ -395,9 +336,9 @@ dma_addr_t dma_map_single(struct device *dev, void *ptr, size_t size,
 
 	BUG_ON(!valid_dma_direction(dir));
 
-	return map_single_or_page(dev, ptr, NULL, 0, size, dir);
+	return map_single(dev, ptr, size, dir);
 }
-EXPORT_SYMBOL(dma_map_single);
+EXPORT_SYMBOL(__dma_map_single);
 
 /*
  * see if a mapped address was really a "safe" buffer and if so, copy
@@ -405,7 +346,7 @@ EXPORT_SYMBOL(dma_map_single);
  * the safe buffer.  (basically return things back to the way they
  * should be)
  */
-void dma_unmap_single(struct device *dev, dma_addr_t dma_addr, size_t size,
+void __dma_unmap_single(struct device *dev, dma_addr_t dma_addr, size_t size,
 		enum dma_data_direction dir)
 {
 	dev_dbg(dev, "%s(ptr=%p,size=%d,dir=%x)\n",
@@ -413,9 +354,9 @@ void dma_unmap_single(struct device *dev, dma_addr_t dma_addr, size_t size,
 
 	unmap_single(dev, dma_addr, size, dir);
 }
-EXPORT_SYMBOL(dma_unmap_single);
+EXPORT_SYMBOL(__dma_unmap_single);
 
-dma_addr_t dma_map_page(struct device *dev, struct page *page,
+dma_addr_t __dma_map_page(struct device *dev, struct page *page,
 		unsigned long offset, size_t size, enum dma_data_direction dir)
 {
 	dev_dbg(dev, "%s(page=%p,off=%#lx,size=%zx,dir=%x)\n",
@@ -423,9 +364,15 @@ dma_addr_t dma_map_page(struct device *dev, struct page *page,
 
 	BUG_ON(!valid_dma_direction(dir));
 
-	return map_single_or_page(dev, NULL, page, offset, size, dir);
+	if (PageHighMem(page)) {
+		dev_err(dev, "DMA buffer bouncing of HIGHMEM pages "
+			     "is not supported\n");
+		return ~0;
+	}
+
+	return map_single(dev, page_address(page) + offset, size, dir);
 }
-EXPORT_SYMBOL(dma_map_page);
+EXPORT_SYMBOL(__dma_map_page);
 
 /*
  * see if a mapped address was really a "safe" buffer and if so, copy
@@ -433,15 +380,15 @@ EXPORT_SYMBOL(dma_map_page);
  * the safe buffer.  (basically return things back to the way they
  * should be)
  */
-void dma_unmap_page(struct device *dev, dma_addr_t dma_addr, size_t size,
+void __dma_unmap_page(struct device *dev, dma_addr_t dma_addr, size_t size,
 		enum dma_data_direction dir)
 {
 	dev_dbg(dev, "%s(ptr=%p,size=%d,dir=%x)\n",
 		__func__, (void *) dma_addr, size, dir);
 
-	unmap_page(dev, dma_addr, size, dir);
+	unmap_single(dev, dma_addr, size, dir);
 }
-EXPORT_SYMBOL(dma_unmap_page);
+EXPORT_SYMBOL(__dma_unmap_page);
 
 int dmabounce_sync_for_cpu(struct device *dev, dma_addr_t addr,
 		unsigned long off, size_t sz, enum dma_data_direction dir)
@@ -504,17 +451,10 @@ EXPORT_SYMBOL(dmabounce_sync_for_device);
 static int dmabounce_init_pool(struct dmabounce_pool *pool, struct device *dev,
 		const char *name, unsigned long size)
 {
-	unsigned int align = 0;
-	if (!(*dev->dma_mask & 0x1))
-		align = 1 << ffs(*dev->dma_mask);
-
-	if (align & (align-1)) {
-		dev_warn(dev, "invalid DMA mask %#llx\n", *dev->dma_mask);
-		return -ENOMEM;
-	}
 	pool->size = size;
 	DO_STATS(pool->allocs = 0);
-	pool->pool = dma_pool_create(name, dev, size, align,
+	pool->pool = dma_pool_create(name, dev, size,
+				     0 /* byte alignment */,
 				     0 /* no page-crossing issues */);
 
 	return pool->pool ? 0 : -ENOMEM;

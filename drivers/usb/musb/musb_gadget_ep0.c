@@ -209,7 +209,7 @@ static inline void musb_try_b_hnp_enable(struct musb *musb)
 	void __iomem	*mbase = musb->mregs;
 	u8		devctl;
 
-	DBG(1, "HNP: Setting HR\n");
+	dev_dbg(musb->controller, "HNP: Setting HR\n");
 	devctl = musb_readb(mbase, MUSB_DEVCTL);
 	musb_writeb(mbase, MUSB_DEVCTL, devctl | MUSB_DEVCTL_HR);
 }
@@ -261,6 +261,7 @@ __acquires(musb->lock)
 					ctrlrequest->wIndex & 0x0f;
 				struct musb_ep		*musb_ep;
 				struct musb_hw_ep	*ep;
+				struct musb_request	*request;
 				void __iomem		*regs;
 				int			is_in;
 				u16			csr;
@@ -300,6 +301,13 @@ __acquires(musb->lock)
 					csr &= ~(MUSB_RXCSR_P_SENDSTALL |
 						 MUSB_RXCSR_P_SENTSTALL);
 					musb_writew(regs, MUSB_RXCSR, csr);
+				}
+
+				/* Maybe start the first request in the queue */
+				request = next_request(musb_ep);
+				if (!musb_ep->busy && request) {
+					dev_dbg(musb->controller, "restarting the request\n");
+					musb_ep_restart(musb, request);
 				}
 
 				/* select ep0 again */
@@ -545,7 +553,7 @@ static void ep0_txstate(struct musb *musb)
 
 	if (!req) {
 		/* WARN_ON(1); */
-		DBG(2, "odd; csr0 %04x\n", musb_readw(regs, MUSB_CSR0));
+		dev_dbg(musb->controller, "odd; csr0 %04x\n", musb_readw(regs, MUSB_CSR0));
 		return;
 	}
 
@@ -602,7 +610,7 @@ musb_read_setup(struct musb *musb, struct usb_ctrlrequest *req)
 	/* NOTE:  earlier 2.6 versions changed setup packets to host
 	 * order, but now USB packets always stay in USB byte order.
 	 */
-	DBG(3, "SETUP req%02x.%02x v%04x i%04x l%d\n",
+	dev_dbg(musb->controller, "SETUP req%02x.%02x v%04x i%04x l%d\n",
 		req->bRequestType,
 		req->bRequest,
 		le16_to_cpu(req->wValue),
@@ -653,6 +661,16 @@ __acquires(musb->lock)
 	return retval;
 }
 
+extern void musb_hz_mode_work(struct work_struct *data)
+{
+	struct musb *musb = container_of(data, struct musb, hz_mode_work);
+
+	if (!musb)
+		return;
+
+	otg_set_hz_mode(musb->xceiv, 1);
+}
+
 /*
  * Handle peripheral ep0 interrupt
  *
@@ -670,7 +688,7 @@ irqreturn_t musb_g_ep0_irq(struct musb *musb)
 	csr = musb_readw(regs, MUSB_CSR0);
 	len = musb_readb(regs, MUSB_COUNT0);
 
-	DBG(4, "csr %04x, count %d, myaddr %d, ep0stage %s\n",
+	dev_dbg(musb->controller, "csr %04x, count %d, myaddr %d, ep0stage %s\n",
 			csr, len,
 			musb_readb(mbase, MUSB_FADDR),
 			decode_ep0stage(musb->ep0_state));
@@ -741,7 +759,9 @@ irqreturn_t musb_g_ep0_irq(struct musb *musb)
 
 		/* enter test mode if needed (exit by reset) */
 		else if (musb->test_mode) {
-			DBG(1, "entering TESTMODE\n");
+			dev_dbg(musb->controller, "entering TESTMODE\n");
+
+			schedule_work(&musb->hz_mode_work);
 
 			if (MUSB_TEST_PACKET == musb->test_mode_nr)
 				musb_load_testpacket(musb);
@@ -853,7 +873,7 @@ setup:
 				break;
 			}
 
-			DBG(3, "handled %d, csr %04x, ep0stage %s\n",
+			dev_dbg(musb->controller, "handled %d, csr %04x, ep0stage %s\n",
 				handled, csr,
 				decode_ep0stage(musb->ep0_state));
 
@@ -870,7 +890,7 @@ setup:
 			if (handled < 0) {
 				musb_ep_select(mbase, 0);
 stall:
-				DBG(3, "stall (%d)\n", handled);
+				dev_dbg(musb->controller, "stall (%d)\n", handled);
 				musb->ackpend |= MUSB_CSR0_P_SENDSTALL;
 				musb->ep0_state = MUSB_EP0_STAGE_IDLE;
 finish:
@@ -950,7 +970,7 @@ musb_g_ep0_queue(struct usb_ep *e, struct usb_request *r, gfp_t gfp_flags)
 		status = 0;
 		break;
 	default:
-		DBG(1, "ep0 request queued in state %d\n",
+		dev_dbg(musb->controller, "ep0 request queued in state %d\n",
 				musb->ep0_state);
 		status = -EINVAL;
 		goto cleanup;
@@ -959,7 +979,7 @@ musb_g_ep0_queue(struct usb_ep *e, struct usb_request *r, gfp_t gfp_flags)
 	/* add request to the list */
 	list_add_tail(&req->list, &ep->req_list);
 
-	DBG(3, "queue to %s (%s), length=%d\n",
+	dev_dbg(musb->controller, "queue to %s (%s), length=%d\n",
 			ep->name, ep->is_in ? "IN/TX" : "OUT/RX",
 			req->request.length);
 
@@ -1052,7 +1072,7 @@ static int musb_g_ep0_halt(struct usb_ep *e, int value)
 		musb->ackpend = 0;
 		break;
 	default:
-		DBG(1, "ep0 can't halt in state %d\n", musb->ep0_state);
+		dev_dbg(musb->controller, "ep0 can't halt in state %d\n", musb->ep0_state);
 		status = -EINVAL;
 	}
 

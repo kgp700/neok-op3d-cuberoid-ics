@@ -22,7 +22,6 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 #include <asm/mach-types.h>
 
 #include "../codecs/tlv320aic23.h"
@@ -34,8 +33,8 @@ static int eukrea_tlv320_hw_params(struct snd_pcm_substream *substream,
 			    struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dai *codec_dai = rtd->dai->codec_dai;
-	struct snd_soc_dai *cpu_dai = rtd->dai->cpu_dai;
+	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	int ret;
 
 	ret = snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
@@ -79,10 +78,10 @@ static struct snd_soc_ops eukrea_tlv320_snd_ops = {
 static struct snd_soc_dai_link eukrea_tlv320_dai = {
 	.name		= "tlv320aic23",
 	.stream_name	= "TLV320AIC23",
-	.codec_dai	= "tlv320aic23-hifi",
-	.platform_name	= "imx-pcm-audio",
-	.codec_name	= "tlv320aic23-codec.0-0x1a",
-	.cpu_dai = "imx-ssi-dai.0",
+	.codec_dai_name	= "tlv320aic23-hifi",
+	.platform_name	= "imx-fiq-pcm-audio.0",
+	.codec_name	= "tlv320aic23-codec.0-001a",
+	.cpu_dai_name	= "imx-ssi.0",
 	.ops		= &eukrea_tlv320_snd_ops,
 };
 
@@ -99,7 +98,8 @@ static int __init eukrea_tlv320_init(void)
 	int ret;
 
 	if (!machine_is_eukrea_cpuimx27() && !machine_is_eukrea_cpuimx25sd()
-		&& !machine_is_eukrea_cpuimx35sd())
+		&& !machine_is_eukrea_cpuimx35sd()
+		&& !machine_is_eukrea_cpuimx51sd())
 		/* return happy. We might run on a totally different machine */
 		return 0;
 

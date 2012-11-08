@@ -23,7 +23,6 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
-#include <sound/soc-dapm.h>
 #include <sound/initval.h>
 #include <sound/tlv.h>
 
@@ -289,12 +288,10 @@ static u16 wm8961_reg_defaults[] = {
 
 struct wm8961_priv {
 	enum snd_soc_control_type control_type;
-	void *control_data;
 	int sysclk;
-	u16 reg_cache[WM8961_MAX_REGISTER];
 };
 
-static int wm8961_volatile_register(unsigned int reg)
+static int wm8961_volatile_register(struct snd_soc_codec *codec, unsigned int reg)
 {
 	switch (reg) {
 	case WM8961_SOFTWARE_RESET:
@@ -712,7 +709,7 @@ static int wm8961_hw_params(struct snd_pcm_substream *substream,
 	if (fs <= 24000)
 		reg |= WM8961_DACSLOPE;
 	else
-		reg &= WM8961_DACSLOPE;
+		reg &= ~WM8961_DACSLOPE;
 	snd_soc_write(codec, WM8961_ADC_DAC_CONTROL_2, reg);
 
 	return 0;
@@ -737,7 +734,7 @@ static int wm8961_set_sysclk(struct snd_soc_dai *dai, int clk_id,
 		freq /= 2;
 	} else {
 		dev_dbg(codec->dev, "Using MCLK/1 for %dHz MCLK\n", freq);
-		reg &= WM8961_MCLKDIV;
+		reg &= ~WM8961_MCLKDIV;
 	}
 
 	snd_soc_write(codec, WM8961_CLOCKING1, reg);
@@ -883,7 +880,7 @@ static int wm8961_set_bias_level(struct snd_soc_codec *codec,
 		break;
 
 	case SND_SOC_BIAS_PREPARE:
-		if (codec->dapm->bias_level == SND_SOC_BIAS_STANDBY) {
+		if (codec->dapm.bias_level == SND_SOC_BIAS_STANDBY) {
 			/* Enable bias generation */
 			reg = snd_soc_read(codec, WM8961_ANTI_POP);
 			reg |= WM8961_BUFIOEN | WM8961_BUFDCOPEN;
@@ -898,7 +895,7 @@ static int wm8961_set_bias_level(struct snd_soc_codec *codec,
 		break;
 
 	case SND_SOC_BIAS_STANDBY:
-		if (codec->dapm->bias_level == SND_SOC_BIAS_PREPARE) {
+		if (codec->dapm.bias_level == SND_SOC_BIAS_PREPARE) {
 			/* VREF off */
 			reg = snd_soc_read(codec, WM8961_PWR_MGMT_1);
 			reg &= ~WM8961_VREF;
@@ -920,7 +917,7 @@ static int wm8961_set_bias_level(struct snd_soc_codec *codec,
 		break;
 	}
 
-	codec->dapm->bias_level = level;
+	codec->dapm.bias_level = level;
 
 	return 0;
 }
@@ -960,11 +957,10 @@ static struct snd_soc_dai_driver wm8961_dai = {
 
 static int wm8961_probe(struct snd_soc_codec *codec)
 {
-	struct wm8961_priv *wm8961 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_dapm_context *dapm = &codec->dapm;
 	int ret = 0;
 	u16 reg;
 
-	codec->control_data = wm8961->control_data;
 	ret = snd_soc_codec_set_cache_io(codec, 8, 16, SND_SOC_I2C);
 	if (ret != 0) {
 		dev_err(codec->dev, "Failed to set cache I/O: %d\n", ret);
@@ -974,8 +970,7 @@ static int wm8961_probe(struct snd_soc_codec *codec)
 	reg = snd_soc_read(codec, WM8961_SOFTWARE_RESET);
 	if (reg != 0x1801) {
 		dev_err(codec->dev, "Device is not a WM8961: ID=0x%x\n", reg);
-		ret = -EINVAL;
-		return ret;
+		return -EINVAL;
 	}
 
 	/* This isn't volatile - readback doesn't correspond to write */
@@ -1028,9 +1023,9 @@ static int wm8961_probe(struct snd_soc_codec *codec)
 
 	snd_soc_add_controls(codec, wm8961_snd_controls,
 				ARRAY_SIZE(wm8961_snd_controls));
-	snd_soc_dapm_new_controls(codec->dapm, wm8961_dapm_widgets,
+	snd_soc_dapm_new_controls(dapm, wm8961_dapm_widgets,
 				  ARRAY_SIZE(wm8961_dapm_widgets));
-	snd_soc_dapm_add_routes(codec->dapm, audio_paths, ARRAY_SIZE(audio_paths));
+	snd_soc_dapm_add_routes(dapm, audio_paths, ARRAY_SIZE(audio_paths));
 
 	return 0;
 }
@@ -1079,7 +1074,7 @@ static struct snd_soc_codec_driver soc_codec_dev_wm8961 = {
 	.suspend =	wm8961_suspend,
 	.resume =	wm8961_resume,
 	.set_bias_level = wm8961_set_bias_level,
-	.reg_cache_size = sizeof(wm8961_reg_defaults),
+	.reg_cache_size = ARRAY_SIZE(wm8961_reg_defaults),
 	.reg_word_size = sizeof(u16),
 	.reg_cache_default = wm8961_reg_defaults,
 	.volatile_register = wm8961_volatile_register,
@@ -1097,7 +1092,6 @@ static __devinit int wm8961_i2c_probe(struct i2c_client *i2c,
 		return -ENOMEM;
 
 	i2c_set_clientdata(i2c, wm8961);
-	wm8961->control_data = i2c;
 
 	ret = snd_soc_register_codec(&i2c->dev,
 			&soc_codec_dev_wm8961, &wm8961_dai, 1);

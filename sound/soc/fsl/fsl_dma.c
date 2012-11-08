@@ -23,6 +23,7 @@
 #include <linux/gfp.h>
 #include <linux/of_platform.h>
 #include <linux/list.h>
+#include <linux/slab.h>
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -60,6 +61,7 @@ struct dma_object {
 	struct snd_soc_platform_driver dai;
 	dma_addr_t ssi_stx_phys;
 	dma_addr_t ssi_srx_phys;
+	unsigned int ssi_fifo_depth;
 	struct ccsr_dma_channel __iomem *channel;
 	unsigned int irq;
 	bool assigned;
@@ -99,6 +101,7 @@ struct fsl_dma_private {
 	unsigned int irq;
 	struct snd_pcm_substream *substream;
 	dma_addr_t ssi_sxx_phys;
+	unsigned int ssi_fifo_depth;
 	dma_addr_t ld_buf_phys;
 	unsigned int current_link;
 	dma_addr_t dma_buf_phys;
@@ -294,6 +297,7 @@ static irqreturn_t fsl_dma_isr(int irq, void *dev_id)
 static int fsl_dma_new(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_card *card = rtd->card->snd_card;
+	struct snd_soc_dai *dai = rtd->cpu_dai;
 	struct snd_pcm *pcm = rtd->pcm;
 	static u64 fsl_dma_dmamask = DMA_BIT_MASK(36);
 	int ret;
@@ -304,21 +308,29 @@ static int fsl_dma_new(struct snd_soc_pcm_runtime *rtd)
 	if (!card->dev->coherent_dma_mask)
 		card->dev->coherent_dma_mask = fsl_dma_dmamask;
 
-	ret = snd_dma_alloc_pages(SNDRV_DMA_TYPE_DEV, card->dev,
-		fsl_dma_hardware.buffer_bytes_max,
-		&pcm->streams[0].substream->dma_buffer);
-	if (ret) {
-		dev_err(card->dev, "can't allocate playback dma buffer\n");
-		return ret;
+	/* Some codecs have separate DAIs for playback and capture, so we
+	 * should allocate a DMA buffer only for the streams that are valid.
+	 */
+
+	if (pcm->streams[0].substream) {
+		ret = snd_dma_alloc_pages(SNDRV_DMA_TYPE_DEV, card->dev,
+			fsl_dma_hardware.buffer_bytes_max,
+			&pcm->streams[0].substream->dma_buffer);
+		if (ret) {
+			dev_err(card->dev, "can't alloc playback dma buffer\n");
+			return ret;
+		}
 	}
 
-	ret = snd_dma_alloc_pages(SNDRV_DMA_TYPE_DEV, card->dev,
-		fsl_dma_hardware.buffer_bytes_max,
-		&pcm->streams[1].substream->dma_buffer);
-	if (ret) {
-		snd_dma_free_pages(&pcm->streams[0].substream->dma_buffer);
-		dev_err(card->dev, "can't allocate capture dma buffer\n");
-		return ret;
+	if (pcm->streams[1].substream) {
+		ret = snd_dma_alloc_pages(SNDRV_DMA_TYPE_DEV, card->dev,
+			fsl_dma_hardware.buffer_bytes_max,
+			&pcm->streams[1].substream->dma_buffer);
+		if (ret) {
+			dev_err(card->dev, "can't alloc capture dma buffer\n");
+			snd_dma_free_pages(&pcm->streams[0].substream->dma_buffer);
+			return ret;
+		}
 	}
 
 	return 0;
@@ -432,13 +444,15 @@ static int fsl_dma_open(struct snd_pcm_substream *substream)
 	else
 		dma_private->ssi_sxx_phys = dma->ssi_srx_phys;
 
+	dma_private->ssi_fifo_depth = dma->ssi_fifo_depth;
 	dma_private->dma_channel = dma->channel;
 	dma_private->irq = dma->irq;
 	dma_private->substream = substream;
 	dma_private->ld_buf_phys = ld_buf_phys;
 	dma_private->dma_buf_phys = substream->dma_buffer.addr;
 
-	ret = request_irq(dma_private->irq, fsl_dma_isr, 0, "DMA", dma_private);
+	ret = request_irq(dma_private->irq, fsl_dma_isr, 0, "fsldma-audio",
+			  dma_private);
 	if (ret) {
 		dev_err(dev, "can't register ISR for IRQ %u (ret=%i)\n",
 			dma_private->irq, ret);
@@ -545,11 +559,11 @@ static int fsl_dma_hw_params(struct snd_pcm_substream *substream,
 	struct device *dev = rtd->platform->dev;
 
 	/* Number of bits per sample */
-	unsigned int sample_size =
+	unsigned int sample_bits =
 		snd_pcm_format_physical_width(params_format(hw_params));
 
 	/* Number of bytes per frame */
-	unsigned int frame_size = 2 * (sample_size / 8);
+	unsigned int sample_bytes = sample_bits / 8;
 
 	/* Bus address of SSI STX register */
 	dma_addr_t ssi_sxx_phys = dma_private->ssi_sxx_phys;
@@ -589,7 +603,7 @@ static int fsl_dma_hw_params(struct snd_pcm_substream *substream,
 	 * that offset here.  While we're at it, also tell the DMA controller
 	 * how much data to transfer per sample.
 	 */
-	switch (sample_size) {
+	switch (sample_bits) {
 	case 8:
 		mr |= CCSR_DMA_MR_DAHTS_1 | CCSR_DMA_MR_SAHTS_1;
 		ssi_sxx_phys += 3;
@@ -603,22 +617,42 @@ static int fsl_dma_hw_params(struct snd_pcm_substream *substream,
 		break;
 	default:
 		/* We should never get here */
-		dev_err(dev, "unsupported sample size %u\n", sample_size);
+		dev_err(dev, "unsupported sample size %u\n", sample_bits);
 		return -EINVAL;
 	}
 
 	/*
-	 * BWC should always be a multiple of the frame size.  BWC determines
-	 * how many bytes are sent/received before the DMA controller checks the
-	 * SSI to see if it needs to stop.  For playback, the transmit FIFO can
-	 * hold three frames, so we want to send two frames at a time. For
-	 * capture, the receive FIFO is triggered when it contains one frame, so
-	 * we want to receive one frame at a time.
+	 * BWC determines how many bytes are sent/received before the DMA
+	 * controller checks the SSI to see if it needs to stop. BWC should
+	 * always be a multiple of the frame size, so that we always transmit
+	 * whole frames.  Each frame occupies two slots in the FIFO.  The
+	 * parameter for CCSR_DMA_MR_BWC() is rounded down the next power of two
+	 * (MR[BWC] can only represent even powers of two).
+	 *
+	 * To simplify the process, we set BWC to the largest value that is
+	 * less than or equal to the FIFO watermark.  For playback, this ensures
+	 * that we transfer the maximum amount without overrunning the FIFO.
+	 * For capture, this ensures that we transfer the maximum amount without
+	 * underrunning the FIFO.
+	 *
+	 * f = SSI FIFO depth
+	 * w = SSI watermark value (which equals f - 2)
+	 * b = DMA bandwidth count (in bytes)
+	 * s = sample size (in bytes, which equals frame_size * 2)
+	 *
+	 * For playback, we never transmit more than the transmit FIFO
+	 * watermark, otherwise we might write more data than the FIFO can hold.
+	 * The watermark is equal to the FIFO depth minus two.
+	 *
+	 * For capture, two equations must hold:
+	 *	w > f - (b / s)
+	 *	w >= b / s
+	 *
+	 * So, b > 2 * s, but b must also be <= s * w.  To simplify, we set
+	 * b = s * w, which is equal to
+	 *      (dma_private->ssi_fifo_depth - 2) * sample_bytes.
 	 */
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		mr |= CCSR_DMA_MR_BWC(2 * frame_size);
-	else
-		mr |= CCSR_DMA_MR_BWC(frame_size);
+	mr |= CCSR_DMA_MR_BWC((dma_private->ssi_fifo_depth - 2) * sample_bytes);
 
 	out_be32(&dma_channel->mr, mr);
 
@@ -865,32 +899,34 @@ static struct snd_pcm_ops fsl_dma_ops = {
 	.pointer	= fsl_dma_pointer,
 };
 
-static int __devinit fsl_soc_dma_probe(struct of_device *of_dev,
-				       const struct of_device_id *match)
+static int __devinit fsl_soc_dma_probe(struct platform_device *pdev)
  {
 	struct dma_object *dma;
-	struct device_node *np = of_dev->dev.of_node;
+	struct device_node *np = pdev->dev.of_node;
 	struct device_node *ssi_np;
 	struct resource res;
+	const uint32_t *iprop;
 	int ret;
 
 	/* Find the SSI node that points to us. */
 	ssi_np = find_ssi_node(np);
 	if (!ssi_np) {
-		dev_err(&of_dev->dev, "cannot find parent SSI node\n");
+		dev_err(&pdev->dev, "cannot find parent SSI node\n");
 		return -ENODEV;
 	}
 
 	ret = of_address_to_resource(ssi_np, 0, &res);
-	of_node_put(ssi_np);
 	if (ret) {
-		dev_err(&of_dev->dev, "could not determine device resources\n");
+		dev_err(&pdev->dev, "could not determine resources for %s\n",
+			ssi_np->full_name);
+		of_node_put(ssi_np);
 		return ret;
 	}
 
 	dma = kzalloc(sizeof(*dma) + strlen(np->full_name), GFP_KERNEL);
 	if (!dma) {
-		dev_err(&of_dev->dev, "could not allocate dma object\n");
+		dev_err(&pdev->dev, "could not allocate dma object\n");
+		of_node_put(ssi_np);
 		return -ENOMEM;
 	}
 
@@ -903,9 +939,18 @@ static int __devinit fsl_soc_dma_probe(struct of_device *of_dev,
 	dma->ssi_stx_phys = res.start + offsetof(struct ccsr_ssi, stx0);
 	dma->ssi_srx_phys = res.start + offsetof(struct ccsr_ssi, srx0);
 
-	ret = snd_soc_register_platform(&of_dev->dev, &dma->dai);
+	iprop = of_get_property(ssi_np, "fsl,fifo-depth", NULL);
+	if (iprop)
+		dma->ssi_fifo_depth = *iprop;
+	else
+                /* Older 8610 DTs didn't have the fifo-depth property */
+		dma->ssi_fifo_depth = 8;
+
+	of_node_put(ssi_np);
+
+	ret = snd_soc_register_platform(&pdev->dev, &dma->dai);
 	if (ret) {
-		dev_err(&of_dev->dev, "could not register platform\n");
+		dev_err(&pdev->dev, "could not register platform\n");
 		kfree(dma);
 		return ret;
 	}
@@ -913,16 +958,16 @@ static int __devinit fsl_soc_dma_probe(struct of_device *of_dev,
 	dma->channel = of_iomap(np, 0);
 	dma->irq = irq_of_parse_and_map(np, 0);
 
-	dev_set_drvdata(&of_dev->dev, dma);
+	dev_set_drvdata(&pdev->dev, dma);
 
 	return 0;
 }
 
-static int __devexit fsl_soc_dma_remove(struct of_device *of_dev)
+static int __devexit fsl_soc_dma_remove(struct platform_device *pdev)
 {
-	struct dma_object *dma = dev_get_drvdata(&of_dev->dev);
+	struct dma_object *dma = dev_get_drvdata(&pdev->dev);
 
-	snd_soc_unregister_platform(&of_dev->dev);
+	snd_soc_unregister_platform(&pdev->dev);
 	iounmap(dma->channel);
 	irq_dispose_mapping(dma->irq);
 	kfree(dma);
@@ -936,7 +981,7 @@ static const struct of_device_id fsl_soc_dma_ids[] = {
 };
 MODULE_DEVICE_TABLE(of, fsl_soc_dma_ids);
 
-static struct of_platform_driver fsl_soc_dma_driver = {
+static struct platform_driver fsl_soc_dma_driver = {
 	.driver = {
 		.name = "fsl-pcm-audio",
 		.owner = THIS_MODULE,
@@ -950,12 +995,12 @@ static int __init fsl_soc_dma_init(void)
 {
 	pr_info("Freescale Elo DMA ASoC PCM Driver\n");
 
-	return of_register_platform_driver(&fsl_soc_dma_driver);
+	return platform_driver_register(&fsl_soc_dma_driver);
 }
 
 static void __exit fsl_soc_dma_exit(void)
 {
-	of_unregister_platform_driver(&fsl_soc_dma_driver);
+	platform_driver_unregister(&fsl_soc_dma_driver);
 }
 
 module_init(fsl_soc_dma_init);

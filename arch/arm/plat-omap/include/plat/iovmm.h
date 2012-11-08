@@ -22,15 +22,13 @@ struct iovm_struct {
 	const struct sg_table	*sgt; /* keep 'page' <-> 'da' mapping */
 	void			*va; /* mpu side mapped address */
 };
+
 /*
  * IOVMF_FLAGS: attribute for iommu virtual memory area(iovma)
  *
  * lower 16 bit is used for h/w and upper 16 bit is for s/w.
  */
 #define IOVMF_SW_SHIFT		16
-#define IOVMF_HW_SIZE		(1 << IOVMF_SW_SHIFT)
-#define IOVMF_HW_MASK		(IOVMF_HW_SIZE - 1)
-#define IOVMF_SW_MASK		(~IOVMF_HW_MASK)UL
 
 /*
  * iovma: h/w flags derived from cam and ram attribute
@@ -70,8 +68,7 @@ struct iovm_struct {
 #define IOVMF_LINEAR_MASK	(3 << (2 + IOVMF_SW_SHIFT))
 
 #define IOVMF_DA_FIXED		(1 << (4 + IOVMF_SW_SHIFT))
-#define IOVMF_DA_ANON		(2 << (4 + IOVMF_SW_SHIFT))
-#define IOVMF_DA_MASK		(3 << (4 + IOVMF_SW_SHIFT))
+
 
 extern struct iovm_struct *find_iovm_area(struct iommu *obj, u32 da);
 extern u32 iommu_vmap(struct iommu *obj, u32 da,
@@ -88,4 +85,5 @@ extern u32 iommu_kmalloc(struct iommu *obj, u32 da, size_t bytes,
 extern void iommu_kfree(struct iommu *obj, u32 da);
 
 extern void *da_to_va(struct iommu *obj, u32 da);
+
 #endif /* __IOMMU_MMAP_H */

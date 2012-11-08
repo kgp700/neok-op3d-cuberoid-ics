@@ -18,6 +18,7 @@
 #define SDIO_CLASS_PHS		0x06	/* PHS standard interface */
 #define SDIO_CLASS_WLAN		0x07	/* WLAN interface */
 #define SDIO_CLASS_ATA		0x08	/* Embedded SDIO-ATA std interface */
+#define SDIO_CLASS_BT_AMP	0x09	/* Type-A Bluetooth AMP interface */
 
 /*
  * Vendors and devices.  Sort key: vendor first, device next.
@@ -34,11 +35,6 @@
 #define SDIO_DEVICE_ID_MARVELL_LIBERTAS		0x9103
 #define SDIO_DEVICE_ID_MARVELL_8688WLAN		0x9104
 #define SDIO_DEVICE_ID_MARVELL_8688BT		0x9105
-
-#ifdef CONFIG_TIWLAN_SDIO
-#define SDIO_VENDOR_ID_TI              0x104c
-#define SDIO_DEVICE_ID_TI_WL12xx       0x9066
-#endif
 
 #define SDIO_VENDOR_ID_SIANO			0x039a
 #define SDIO_DEVICE_ID_SIANO_NOVA_B0		0x0201

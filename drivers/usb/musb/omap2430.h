@@ -28,7 +28,6 @@
 #	define	FORCEIDLE		(0 << SIDLEMODE)
 #	define	NOIDLE			(1 << SIDLEMODE)
 #	define	SMARTIDLE		(2 << SIDLEMODE)
-#	define	SMARTIDLEWKUP		(3 << SIDLEMODE)
 
 #	define	ENABLEWAKEUP		(1 << 2)
 #	define	SOFTRST			(1 << 1)
@@ -49,18 +48,5 @@
 
 #define OTG_FORCESTDBY		0x414
 #	define	ENABLEFORCE		(1 << 0)
-
-#define USBOTGHS_CONTROL	0x33c
-#	define	AVALID			(1 << 0)
-#	define	BVALID			(1 << 1)
-#	define	VBUSVALID		(1 << 2)
-#	define	SESSEND			(1 << 3)
-#	define	IDDIG			(1 << 4)
-
-#define CONTROL_DEV_CONF	0x300
-#	define PHY_PD			(1 << 0)
-
-#define USBA0_OTG_CE_PAD1_USBA0_OTG_DP	0x194
-#	define	DP_WAKEUPENABLE		(1 << 30)
 
 #endif	/* __MUSB_OMAP243X_H__ */

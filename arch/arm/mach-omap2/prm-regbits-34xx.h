@@ -1,6 +1,3 @@
-#ifndef __ARCH_ARM_MACH_OMAP2_PRM_REGBITS_34XX_H
-#define __ARCH_ARM_MACH_OMAP2_PRM_REGBITS_34XX_H
-
 /*
  * OMAP3430 Power/Reset Management register bits
  *
@@ -13,8 +10,11 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
+#ifndef __ARCH_ARM_MACH_OMAP2_PRM_REGBITS_34XX_H
+#define __ARCH_ARM_MACH_OMAP2_PRM_REGBITS_34XX_H
 
-#include "prm.h"
+
+#include "prm2xxx_3xxx.h"
 
 /* Shared register bits */
 
@@ -95,11 +95,7 @@
 #define OMAP3430_WKUP_EN_MASK				(1 << 0)
 
 /* PM_MPUGRPSEL1_CORE, PM_IVA2GRPSEL1_CORE shared bits */
-#define OMAP3430ES2_GRPSEL_MMC3_SHIFT			30
-#define OMAP3430ES2_GRPSEL_MMC3_MASK			(1 << 30)
-#define OMAP3430_GRPSEL_MMC2_SHIFT			25
 #define OMAP3430_GRPSEL_MMC2_MASK			(1 << 25)
-#define OMAP3430_GRPSEL_MMC1_SHIFT			24
 #define OMAP3430_GRPSEL_MMC1_MASK			(1 << 24)
 #define OMAP3430_GRPSEL_MCSPI4_MASK			(1 << 21)
 #define OMAP3430_GRPSEL_MCSPI3_MASK			(1 << 20)
@@ -129,6 +125,7 @@
 #define OMAP3430_MEMRETSTATE_MASK			(1 << 8)
 
 /* PM_MPUGRPSEL_PER, PM_IVA2GRPSEL_PER shared bits */
+#define OMAP3630_GRPSEL_UART4_MASK			(1 << 18)
 #define OMAP3430_GRPSEL_GPIO6_MASK			(1 << 17)
 #define OMAP3430_GRPSEL_GPIO5_MASK			(1 << 16)
 #define OMAP3430_GRPSEL_GPIO4_MASK			(1 << 15)
@@ -219,12 +216,7 @@
 /* PRM_SYSCONFIG specific bits */
 
 /* PRM_IRQSTATUS_MPU specific bits */
-#define OMAP3630_VC_BYPASS_ACK_ST_SHIFT			28
-#define OMAP3630_VC_BYPASS_ACK_ST_MASK			(1 << 28)
-#define OMAP3630_VC_VP1_ACK_ST_SHIFT			27
-#define OMAP3630_VC_VP1_ACK_ST_MASK			(1 << 27)
-#define OMAP3630_ABB_LDO_TRANXDONE_ST_SHIFT		26
-#define OMAP3630_ABB_LDO_TRANXDONE_ST_MASK		(1 << 26)
+#define OMAP3630_ABB_LDO_TRANXDONE_ST_MASK             (1 << 26)
 #define OMAP3430ES2_SND_PERIPH_DPLL_ST_SHIFT		25
 #define OMAP3430ES2_SND_PERIPH_DPLL_ST_MASK		(1 << 25)
 #define OMAP3430_VC_TIMEOUTERR_ST_MASK			(1 << 24)
@@ -257,12 +249,6 @@
 #define OMAP3430_FS_USB_WKUP_ST_MASK			(1 << 1)
 
 /* PRM_IRQENABLE_MPU specific bits */
-#define OMAP3630_VC_BYPASS_ACK_EN_SHIFT				28
-#define OMAP3630_VC_BYPASS_ACK_EN_MASK				(1 << 28)
-#define OMAP3630_VC_VP1_ACK_EN_SHIFT				27
-#define OMAP3630_VC_VP1_ACK_EN_MASK				(1 << 27)
-#define OMAP3630_ABB_LDO_TRANXDONE_EN_SHIFT			26
-#define OMAP3630_ABB_LDO_TRANXDONE_EN_MASK			(1 << 26)
 #define OMAP3430ES2_SND_PERIPH_DPLL_RECAL_EN_SHIFT		25
 #define OMAP3430ES2_SND_PERIPH_DPLL_RECAL_EN_MASK		(1 << 25)
 #define OMAP3430_VC_TIMEOUTERR_EN_MASK				(1 << 24)
@@ -601,24 +587,6 @@
 /* PRM_VP2_VOLTAGE specific bits */
 
 /* PRM_VP2_STATUS specific bits */
-
-/* PRM_LDO_ABB_SETUP specific bits */
-#define OMAP3630_SR2_IN_TRANSITION_SHIFT		6
-#define OMAP3630_SR2_IN_TRANSITION_MASK			(1 << 6)
-#define OMAP3630_SR2_STATUS_SHIFT			3
-#define OMAP3630_SR2_STATUS_MASK			(3 << 3)
-#define OMAP3630_OPP_CHANGE_SHIFT			2
-#define OMAP3630_OPP_CHANGE_MASK			(1 << 2)
-#define OMAP3630_OPP_SEL_SHIFT				0
-#define OMAP3630_OPP_SEL_MASK				(3 << 0)
-
-/* PRM_LDO_ABB_CTRL specific bits */
-#define OMAP3630_SR2_WTCNT_VALUE_SHIFT			8
-#define OMAP3630_SR2_WTCNT_VALUE_MASK			(0xff << 8)
-#define OMAP3630_ACTIVE_FBB_SEL_SHIFT			2
-#define OMAP3630_ACTIVE_FBB_SEL_MASK			(1 << 2)
-#define OMAP3630_SR2EN_SHIFT				0
-#define OMAP3630_SR2EN_MASK				(1 << 0)
 
 /* RM_RSTST_NEON specific bits */
 

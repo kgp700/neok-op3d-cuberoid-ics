@@ -60,19 +60,6 @@
 #define IOMEM(x)		((void __force __iomem *)(x))
 #endif
 
-#ifdef CONFIG_INTERCONNECT_IO_POSTING
- /*
-  * ARM writes to devices are postable.  Further software
-  * sychronization neeed ex: DSB or register read back
-  */
-#define IO_MAP_TYPE    MT_DEVICE
-#else
-/* ARM writes to devices are sychronized */
-#define IO_MAP_TYPE    MT_MEMORY_SO
-#endif
-
-
-
 #define OMAP1_IO_OFFSET		0x01000000	/* Virtual IO = 0xfefb0000 */
 #define OMAP1_IO_ADDRESS(pa)	IOMEM((pa) - OMAP1_IO_OFFSET)
 
@@ -94,7 +81,6 @@
 
 #define OMAP2_EMU_IO_OFFSET		0xaa800000	/* Emulation */
 #define OMAP2_EMU_IO_ADDRESS(pa)	IOMEM((pa) + OMAP2_EMU_IO_OFFSET)
-
 
 /*
  * ----------------------------------------------------------------------------
@@ -158,18 +144,6 @@
  * ----------------------------------------------------------------------------
  */
 
-/* Select ARM view IO behavior */
-#ifdef CONFIG_INTERCONNECT_IO_POSTING
-/*
- * ARM writes to devices are postable.  Further software
- * sychronization neeed ex: DSB or register read back
- */
-#define IO_MAP_TYPE    MT_DEVICE
-#else
-/* ARM writes to devices are sychronized */
-#define IO_MAP_TYPE    MT_MEMORY_SO
-#endif
-
 /* We map both L3 and L4 on OMAP3 */
 #define L3_34XX_PHYS		L3_34XX_BASE	/* 0x68000000 --> 0xf8000000 */
 #define L3_34XX_VIRT		(L3_34XX_PHYS + OMAP2_L3_IO_OFFSET)
@@ -183,10 +157,6 @@
  * Need to look at the Size 4M for L4.
  * VPOM3430 was not working for Int controller
  */
-
-#define L4_WK_34XX_PHYS		L4_WK_34XX_BASE /* 0x48300000 --> 0xfa300000 */
-#define L4_WK_34XX_VIRT		(L4_WK_34XX_PHYS + OMAP2_L4_IO_OFFSET)
-#define L4_WK_34XX_SIZE		SZ_1M
 
 #define L4_PER_34XX_PHYS	L4_PER_34XX_BASE
 						/* 0x49000000 --> 0xfb000000 */
@@ -226,13 +196,6 @@
 #define L3_44XX_VIRT		(L3_44XX_PHYS + OMAP4_L3_IO_OFFSET)
 #define L3_44XX_SIZE		SZ_1M
 
-#define L3_DSS_44XX_BASE	0x58000000
-#define L3_DSS_44XX_IO_OFFSET	0xA0100000
-
-#define L3_DSS_44XX_PHYS	L3_DSS_44XX_BASE /* 0x58000000 --> 0xf8100000 */
-#define L3_DSS_44XX_VIRT	(L3_DSS_44XX_PHYS + L3_DSS_44XX_IO_OFFSET)
-#define L3_DSS_44XX_SIZE	SZ_1M
-
 #define L4_44XX_PHYS		L4_44XX_BASE	/* 0x4a000000 --> 0xfc000000 */
 #define L4_44XX_VIRT		(L4_44XX_PHYS + OMAP2_L4_IO_OFFSET)
 #define L4_44XX_SIZE		SZ_4M
@@ -242,7 +205,6 @@
 #define L4_PER_44XX_VIRT	(L4_PER_44XX_PHYS + OMAP2_L4_IO_OFFSET)
 #define L4_PER_44XX_SIZE	SZ_4M
 
-#define L4_ABE_44XX_BASE	0x49000000
 #define L4_ABE_44XX_PHYS	L4_ABE_44XX_BASE
 						/* 0x49000000 --> 0xfb000000 */
 #define L4_ABE_44XX_VIRT	(L4_ABE_44XX_PHYS + OMAP2_L4_IO_OFFSET)
@@ -297,7 +259,7 @@ struct omap_sdrc_params;
 extern void omap1_map_common_io(void);
 extern void omap1_init_common_hw(void);
 
-#ifdef CONFIG_ARCH_OMAP2420
+#ifdef CONFIG_SOC_OMAP2420
 extern void omap242x_map_common_io(void);
 #else
 static inline void omap242x_map_common_io(void)
@@ -305,7 +267,7 @@ static inline void omap242x_map_common_io(void)
 }
 #endif
 
-#ifdef CONFIG_ARCH_OMAP2430
+#ifdef CONFIG_SOC_OMAP2430
 extern void omap243x_map_common_io(void);
 #else
 static inline void omap243x_map_common_io(void)
@@ -321,6 +283,14 @@ static inline void omap34xx_map_common_io(void)
 }
 #endif
 
+#ifdef CONFIG_SOC_OMAPTI816X
+extern void omapti816x_map_common_io(void);
+#else
+static inline void omapti816x_map_common_io(void)
+{
+}
+#endif
+
 #ifdef CONFIG_ARCH_OMAP4
 extern void omap44xx_map_common_io(void);
 #else
@@ -329,11 +299,12 @@ static inline void omap44xx_map_common_io(void)
 }
 #endif
 
-extern void omap2_init_common_hw(struct omap_sdrc_params *sdrc_cs0,
-				 struct omap_sdrc_params *sdrc_cs1);
+extern void omap2_init_common_infrastructure(void);
+extern void omap2_init_common_devices(struct omap_sdrc_params *sdrc_cs0,
+				      struct omap_sdrc_params *sdrc_cs1);
 
-#define __arch_ioremap(p,s,t)	omap_ioremap(p,s,t)
-#define __arch_iounmap(v)	omap_iounmap(v)
+#define __arch_ioremap	omap_ioremap
+#define __arch_iounmap	omap_iounmap
 
 void __iomem *omap_ioremap(unsigned long phys, size_t size, unsigned int type);
 void omap_iounmap(volatile void __iomem *addr);

@@ -203,8 +203,8 @@ void gps_chrdrv_stub_init(void);
 /* time in msec to wait for
  * line discipline to be installed
  */
-#define LDISC_TIME	5000 //1000
-#define CMD_RESP_TIME	4000 //800
+#define LDISC_TIME	1150
+#define CMD_RESP_TIME	1000
 #define CMD_WR_TIME	5000
 #define MAKEWORD(a, b)  ((unsigned short)(((unsigned char)(a)) \
 	| ((unsigned short)((unsigned char)(b))) << 8))
@@ -371,8 +371,6 @@ struct hci_command {
 #define LL_WAKE_UP_IND	0x32
 #define LL_WAKE_UP_ACK	0x33
 
-#define HCILL_SLEEP_MODE_OPCODE 0xFD0C
-
 /* initialize and de-init ST LL */
 long st_ll_init(struct st_data_s *);
 long st_ll_deinit(struct st_data_s *);
@@ -412,7 +410,28 @@ struct gps_event_hdr {
 	u16 plen;
 } __attribute__ ((packed));
 
-/* platform data */
+/**
+ * struct ti_st_plat_data - platform data shared between ST driver and
+ *	platform specific board file which adds the ST device.
+ * @nshutdown_gpio: Host's GPIO line to which chip's BT_EN is connected.
+ * @dev_name: The UART/TTY name to which chip is interfaced. (eg: /dev/ttyS1)
+ * @flow_cntrl: Should always be 1, since UART's CTS/RTS is used for PM
+ *	purposes.
+ * @baud_rate: The baud rate supported by the Host UART controller, this will
+ *	be shared across with the chip via a HCI VS command from User-Space Init
+ *	Mgr application.
+ * @suspend:
+ * @resume: legacy PM routines hooked to platform specific board file, so as
+ *	to take chip-host interface specific action.
+ * @chip_enable:
+ * @chip_disable: Platform/Interface specific mux mode setting, GPIO
+ *	configuring, Host side PM disabling etc.. can be done here.
+ * @chip_asleep:
+ * @chip_awake: Chip specific deep sleep states is communicated to Host
+ *	specific board-xx.c to take actions such as cut UART clocks when chip
+ *	asleep or run host faster when chip awake etc..
+ *
+ */
 struct ti_st_plat_data {
 	long nshutdown_gpio;
 	unsigned char dev_name[UART_DEV_NAME_LEN]; /* uart name */
@@ -420,30 +439,10 @@ struct ti_st_plat_data {
 	unsigned long baud_rate;
 	int (*suspend)(struct platform_device *, pm_message_t);
 	int (*resume)(struct platform_device *);
+	int (*chip_enable) (void);
+	int (*chip_disable) (void);
+	int (*chip_asleep) (void);
+	int (*chip_awake) (void);
 };
-
-//#define SHOW_ST_LOG
-#if defined(SHOW_ST_LOG)
-#   define ST_LOG(fmt, arg...)  printk(KERN_ERR "(st):"fmt"\n" , ## arg)
-#   define ST_LOG_X(fmt, arg...)
-#else
-#   define ST_LOG(fmt, arg...)
-#   define ST_LOG_X(fmt, arg...)
-#endif
-
-/* all debug macros go in here */
-#define ST_DRV_ERR(fmt, arg...)  printk(KERN_ERR "(st):"fmt"\n" , ## arg)
-
-#if defined(DEBUG)		/* limited debug messages */
-#   define ST_DRV_DBG(fmt, arg...)  printk(KERN_INFO "(st):"fmt"\n" , ## arg)
-#   define ST_DRV_VER(fmt, arg...)
-#elif defined(VERBOSE)		/* very verbose */
-#   define ST_DRV_DBG(fmt, arg...)  printk(KERN_INFO "(st):"fmt"\n" , ## arg)
-#   define ST_DRV_VER(fmt, arg...)  printk(KERN_INFO "(st):"fmt"\n" , ## arg)
-#else /* error msgs only */
-#   define ST_DRV_DBG(fmt, arg...)
-#   define ST_DRV_VER(fmt, arg...)
-#endif
-
 
 #endif /* TI_WILINK_ST_H */

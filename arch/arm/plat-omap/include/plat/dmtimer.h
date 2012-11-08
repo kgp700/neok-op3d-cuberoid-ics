@@ -35,8 +35,7 @@
 #ifndef __ASM_ARCH_DMTIMER_H
 #define __ASM_ARCH_DMTIMER_H
 
-#include <linux/platform_device.h>
-
+#include <linux/spinlock_types.h>
 /* clock sources */
 #define OMAP_TIMER_SRC_SYS_CLK			0x00
 #define OMAP_TIMER_SRC_32_KHZ			0x01
@@ -54,54 +53,108 @@
 
 /*
  * IP revision identifier so that Highlander IP
- * in OMAP 4 can be distinguished.
+ * in OMAP4 can be distinguished.
  */
-#define OMAP_TIMER_IP_VERSION_1			0x1
+#define OMAP_TIMER_IP_VERSION_1                        0x1
 #define OMAP_TIMER_IP_VERSION_2			0x2
 
-struct omap_dm_timer;
+struct omap_secure_timer_dev_attr {
+	bool is_secure_timer;
+};
+
+struct timer_regs {
+	u32 tidr;
+	u32 tiocp_cfg;
+	u32 tistat;
+	u32 tisr;
+	u32 tier;
+	u32 twer;
+	u32 tclr;
+	u32 tcrr;
+	u32 tldr;
+	u32 ttrg;
+	u32 twps;
+	u32 tmar;
+	u32 tcar1;
+	u32 tsicr;
+	u32 tcar2;
+	u32 tpir;
+	u32 tnir;
+	u32 tcvr;
+	u32 tocr;
+	u32 towr;
+};
+
+struct omap_dm_timer {
+	int irq;
+	struct clk *fclk;
+	void __iomem *io_base;
+	unsigned reserved:1;
+	unsigned enabled:1;
+	unsigned posted:1;
+	unsigned is_early_init:1;
+	unsigned needs_manual_reset:1;
+	spinlock_t lock;
+	u8 func_offset;
+	u8 intr_offset;
+	bool loses_context;
+	bool context_saved;
+	u32 ctx_loss_count;
+	struct timer_regs context;
+	struct platform_device *pdev;
+	struct list_head node;
+
+};
+
 extern struct omap_dm_timer *gptimer_wakeup;
 extern struct sys_timer omap_timer;
 struct clk;
 
 struct dmtimer_platform_data {
-	int (*set_timer_src) (struct platform_device *pdev, int source);
+	int (*set_timer_src)(struct platform_device *pdev, int source);
 	int timer_ip_type;
-	int func_offset;
-	int intr_offset;
 	u32 is_early_init:1;
+	u32 needs_manual_reset:1;
+	bool loses_context;
+
 };
 
 struct omap_dm_timer *omap_dm_timer_request(void);
 struct omap_dm_timer *omap_dm_timer_request_specific(int timer_id);
-void omap_dm_timer_free(struct omap_dm_timer *timer);
-void omap_dm_timer_enable(struct omap_dm_timer *timer);
-void omap_dm_timer_disable(struct omap_dm_timer *timer);
+int omap_dm_timer_free(struct omap_dm_timer *timer);
+int omap_dm_timer_enable(struct omap_dm_timer *timer);
+int omap_dm_timer_disable(struct omap_dm_timer *timer);
 
 int omap_dm_timer_get_irq(struct omap_dm_timer *timer);
 
 u32 omap_dm_timer_modify_idlect_mask(u32 inputmask);
 struct clk *omap_dm_timer_get_fclk(struct omap_dm_timer *timer);
 
-void omap_dm_timer_trigger(struct omap_dm_timer *timer);
-void omap_dm_timer_start(struct omap_dm_timer *timer);
-void omap_dm_timer_stop(struct omap_dm_timer *timer);
+int omap_dm_timer_trigger(struct omap_dm_timer *timer);
+int omap_dm_timer_start(struct omap_dm_timer *timer);
+int omap_dm_timer_stop(struct omap_dm_timer *timer);
 
 int omap_dm_timer_set_source(struct omap_dm_timer *timer, int source);
-void omap_dm_timer_set_load(struct omap_dm_timer *timer, int autoreload, unsigned int value);
-void omap_dm_timer_set_load_start(struct omap_dm_timer *timer, int autoreload, unsigned int value);
-void omap_dm_timer_set_match(struct omap_dm_timer *timer, int enable, unsigned int match);
-void omap_dm_timer_set_pwm(struct omap_dm_timer *timer, int def_on, int toggle, int trigger);
-void omap_dm_timer_set_prescaler(struct omap_dm_timer *timer, int prescaler);
+int omap_dm_timer_set_load(struct omap_dm_timer *timer, int autoreload,
+	unsigned int value);
+int omap_dm_timer_set_load_start(struct omap_dm_timer *timer,
+	int autoreload, unsigned int value);
+int omap_dm_timer_set_match(struct omap_dm_timer *timer, int enable,
+	unsigned int match);
+int omap_dm_timer_set_pwm(struct omap_dm_timer *timer, int def_on,
+	int toggle, int trigger);
+int omap_dm_timer_set_prescaler(struct omap_dm_timer *timer, int prescaler);
 
-void omap_dm_timer_set_int_enable(struct omap_dm_timer *timer, unsigned int value);
+int omap_dm_timer_set_int_enable(struct omap_dm_timer *timer,
+	unsigned int value);
 
 unsigned int omap_dm_timer_read_status(struct omap_dm_timer *timer);
-void omap_dm_timer_write_status(struct omap_dm_timer *timer, unsigned int value);
+int omap_dm_timer_write_status(struct omap_dm_timer *timer, unsigned int value);
 unsigned int omap_dm_timer_read_counter(struct omap_dm_timer *timer);
-void omap_dm_timer_write_counter(struct omap_dm_timer *timer, unsigned int value);
+int omap_dm_timer_write_counter(struct omap_dm_timer *timer,
+	unsigned int value);
 
 int omap_dm_timers_active(void);
-void omap_dm_timer_set_int_disable(struct omap_dm_timer *, unsigned int);
+
 
 #endif /* __ASM_ARCH_DMTIMER_H */

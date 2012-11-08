@@ -16,7 +16,8 @@
 #include <linux/gpio.h>
 #include <linux/i2c/twl.h>
 #include <linux/regulator/machine.h>
-#include <linux/synaptics_i2c_rmi.h>
+#include <linux/regulator/fixed.h>
+#include <linux/wl12xx.h>
 #include <linux/mmc/host.h>
 
 #include <asm/mach-types.h>
@@ -25,45 +26,20 @@
 
 #include <plat/common.h>
 #include <plat/usb.h>
-#include <plat/control.h>
-#ifdef CONFIG_SERIAL_OMAP
-#include <plat/omap-serial.h>
-#include <plat/serial.h>
-#endif
 
 #include <mach/board-zoom.h>
 
 #include "mux.h"
 #include "hsmmc.h"
+#include "common-board-devices.h"
 
-#define OMAP_SYNAPTICS_GPIO	163
+#define OMAP_ZOOM_WLAN_PMENA_GPIO	(101)
+#define OMAP_ZOOM_WLAN_IRQ_GPIO		(162)
 
-#include <media/v4l2-int-device.h>
-
-#if (defined(CONFIG_VIDEO_IMX046) || defined(CONFIG_VIDEO_IMX046_MODULE)) && \
-	defined(CONFIG_VIDEO_OMAP3)
-#include <media/imx046.h>
-extern struct imx046_platform_data zoom2_imx046_platform_data;
-#endif
-
-#ifdef CONFIG_VIDEO_OMAP3
-extern void zoom2_cam_init(void);
-#else
-#define zoom2_cam_init()	NULL
-#endif
-
-#if (defined(CONFIG_VIDEO_LV8093) || defined(CONFIG_VIDEO_LV8093_MODULE)) && \
-	defined(CONFIG_VIDEO_OMAP3)
-#include <media/lv8093.h>
-extern struct imx046_platform_data zoom2_lv8093_platform_data;
-#define LV8093_PS_GPIO		7
-/* GPIO7 is connected to lens PS pin through inverter */
-#define LV8093_PWR_OFF		1
-#define LV8093_PWR_ON		(!LV8093_PWR_OFF)
-#endif
+#define LCD_PANEL_ENABLE_GPIO		(7 + OMAP_MAX_GPIO_LINES)
 
 /* Zoom2 has Qwerty keyboard*/
-static int board_keymap[] = {
+static uint32_t board_keymap[] = {
 	KEY(0, 0, KEY_E),
 	KEY(0, 1, KEY_R),
 	KEY(0, 2, KEY_T),
@@ -141,6 +117,11 @@ static struct regulator_consumer_supply zoom_vmmc2_supply = {
 	.supply		= "vmmc",
 };
 
+static struct regulator_consumer_supply zoom_vmmc3_supply = {
+	.supply		= "vmmc",
+	.dev_name	= "omap_hsmmc.2",
+};
+
 /* VMMC1 for OMAP VDD_MMC1 (i/o) and MMC1 card */
 static struct regulator_init_data zoom_vmmc1 = {
 	.constraints = {
@@ -186,7 +167,39 @@ static struct regulator_init_data zoom_vsim = {
 	.consumer_supplies      = &zoom_vsim_supply,
 };
 
-static struct omap2_hsmmc_info mmc[] __initdata = {
+static struct regulator_init_data zoom_vmmc3 = {
+	.constraints = {
+		.valid_ops_mask	= REGULATOR_CHANGE_STATUS,
+	},
+	.num_consumer_supplies	= 1,
+	.consumer_supplies = &zoom_vmmc3_supply,
+};
+
+static struct fixed_voltage_config zoom_vwlan = {
+	.supply_name		= "vwl1271",
+	.microvolts		= 1800000, /* 1.8V */
+	.gpio			= OMAP_ZOOM_WLAN_PMENA_GPIO,
+	.startup_delay		= 70000, /* 70msec */
+	.enable_high		= 1,
+	.enabled_at_boot	= 0,
+	.init_data		= &zoom_vmmc3,
+};
+
+static struct platform_device omap_vwlan_device = {
+	.name		= "reg-fixed-voltage",
+	.id		= 1,
+	.dev = {
+		.platform_data	= &zoom_vwlan,
+	},
+};
+
+static struct wl12xx_platform_data omap_zoom_wlan_data __initdata = {
+	.irq = OMAP_GPIO_IRQ(OMAP_ZOOM_WLAN_IRQ_GPIO),
+	/* ZOOM ref clock is 26 MHz */
+	.board_ref_clock = 1,
+};
+
+static struct omap2_hsmmc_info mmc[] = {
 	{
 		.name		= "external",
 		.mmc		= 1,
@@ -203,16 +216,24 @@ static struct omap2_hsmmc_info mmc[] __initdata = {
 		.nonremovable	= true,
 		.power_saving	= true,
 	},
+	{
+		.name		= "wl1271",
+		.mmc		= 3,
+		.caps		= MMC_CAP_4_BIT_DATA | MMC_CAP_POWER_OFF_CARD,
+		.gpio_wp	= -EINVAL,
+		.gpio_cd	= -EINVAL,
+		.nonremovable	= true,
+	},
 	{}      /* Terminator */
 };
 
-static struct regulator_consumer_supply zoom_vpll2_supply = {
-	.supply         = "vdds_dsi",
+static struct regulator_consumer_supply zoom_vpll2_supplies[] = {
+	REGULATOR_SUPPLY("vdds_dsi", "omapdss"),
+	REGULATOR_SUPPLY("vdds_dsi", "omapdss_dsi1"),
 };
 
-static struct regulator_consumer_supply zoom_vdda_dac_supply = {
-	.supply         = "vdda_dac",
-};
+static struct regulator_consumer_supply zoom_vdda_dac_supply =
+	REGULATOR_SUPPLY("vdda_dac", "omapdss_venc");
 
 static struct regulator_init_data zoom_vpll2 = {
 	.constraints = {
@@ -223,8 +244,8 @@ static struct regulator_init_data zoom_vpll2 = {
 		.valid_ops_mask         = REGULATOR_CHANGE_MODE
 					| REGULATOR_CHANGE_STATUS,
 	},
-	.num_consumer_supplies  = 1,
-	.consumer_supplies      = &zoom_vpll2_supply,
+	.num_consumer_supplies		= ARRAY_SIZE(zoom_vpll2_supplies),
+	.consumer_supplies		= zoom_vpll2_supplies,
 };
 
 static struct regulator_init_data zoom_vdac = {
@@ -236,13 +257,15 @@ static struct regulator_init_data zoom_vdac = {
 		.valid_ops_mask         = REGULATOR_CHANGE_MODE
 					| REGULATOR_CHANGE_STATUS,
 	},
-	.num_consumer_supplies  = 1,
-	.consumer_supplies      = &zoom_vdda_dac_supply,
+	.num_consumer_supplies		= 1,
+	.consumer_supplies		= &zoom_vdda_dac_supply,
 };
 
 static int zoom_twl_gpio_setup(struct device *dev,
 		unsigned gpio, unsigned ngpio)
 {
+	int ret;
+
 	/* gpio + 0 is "mmc0_cd" (input/IRQ) */
 	mmc[0].gpio_cd = gpio + 0;
 	omap2_hsmmc_init(mmc);
@@ -254,9 +277,20 @@ static int zoom_twl_gpio_setup(struct device *dev,
 	zoom_vsim_supply.dev = mmc[0].dev;
 	zoom_vmmc2_supply.dev = mmc[1].dev;
 
-	return 0;
+	ret = gpio_request_one(LCD_PANEL_ENABLE_GPIO, GPIOF_OUT_INIT_LOW,
+			       "lcd enable");
+	if (ret)
+		pr_err("Failed to get LCD_PANEL_ENABLE_GPIO (gpio%d).\n",
+				LCD_PANEL_ENABLE_GPIO);
+
+	return ret;
 }
 
+/* EXTMUTE callback function */
+static void zoom2_set_hs_extmute(int mute)
+{
+	gpio_set_value(ZOOM2_HEADSET_EXTMUTE_GPIO, mute);
+}
 
 static int zoom_batt_table[] = {
 /* 0 C*/
@@ -289,9 +323,7 @@ static struct twl4030_madc_platform_data zoom_madc_data = {
 	.irq_line	= 1,
 };
 
-static struct twl4030_codec_audio_data zoom_audio_data = {
-	.audio_mclk = 26000000,
-};
+static struct twl4030_codec_audio_data zoom_audio_data;
 
 static struct twl4030_codec_data zoom_codec_data = {
 	.audio_mclk = 26000000,
@@ -314,163 +346,20 @@ static struct twl4030_platform_data zoom_twldata = {
 	.vsim           = &zoom_vsim,
 	.vpll2		= &zoom_vpll2,
 	.vdac		= &zoom_vdac,
-
-};
-
-static struct i2c_board_info __initdata zoom_i2c_boardinfo[] = {
-	{
-		I2C_BOARD_INFO("twl5030", 0x48),
-		.flags		= I2C_CLIENT_WAKE,
-		.irq		= INT_34XX_SYS_NIRQ,
-		.platform_data	= &zoom_twldata,
-	},
-};
-
-static void synaptics_dev_init(void)
-{
-	/* Set the ts_gpio pin mux */
-	omap_mux_init_signal("gpio_163", OMAP_PIN_INPUT_PULLUP);
-
-	if (gpio_request(OMAP_SYNAPTICS_GPIO, "touch") < 0) {
-		printk(KERN_ERR "can't get synaptics pen down GPIO\n");
-		return;
-	}
-	gpio_direction_input(OMAP_SYNAPTICS_GPIO);
-	gpio_set_debounce(OMAP_SYNAPTICS_GPIO, 310);
-}
-
-static int synaptics_power(int power_state)
-{
-	/* TODO: synaptics is powered by vbatt */
-	return 0;
-}
-
-static struct synaptics_i2c_rmi_platform_data synaptics_platform_data[] = {
-	{
-		.version        = 0x0,
-		.power          = &synaptics_power,
-		.flags          = SYNAPTICS_SWAP_XY,
-		.irqflags       = IRQF_TRIGGER_LOW,
-	}
-};
-
-static struct i2c_board_info __initdata zoom2_i2c_bus2_info[] = {
-	{
-		I2C_BOARD_INFO(SYNAPTICS_I2C_RMI_NAME,  0x20),
-		.platform_data = &synaptics_platform_data,
-		.irq = OMAP_GPIO_IRQ(OMAP_SYNAPTICS_GPIO),
-	},
-#if (defined(CONFIG_VIDEO_IMX046) || defined(CONFIG_VIDEO_IMX046_MODULE)) && \
-	defined(CONFIG_VIDEO_OMAP3)
-	{
-		I2C_BOARD_INFO(IMX046_NAME, IMX046_I2C_ADDR),
-		.platform_data = &zoom2_imx046_platform_data,
-	},
-#endif
-#if (defined(CONFIG_VIDEO_LV8093) || defined(CONFIG_VIDEO_LV8093_MODULE)) && \
-	defined(CONFIG_VIDEO_OMAP3)
-	{
-		I2C_BOARD_INFO(LV8093_NAME,  LV8093_AF_I2C_ADDR),
-		.platform_data = &zoom2_lv8093_platform_data,
-	},
-#endif
 };
 
 static int __init omap_i2c_init(void)
 {
-	/* Disable OMAP 3630 internal pull-ups for I2Ci */
-	if (cpu_is_omap3630()) {
-
-		u32 prog_io;
-
-		prog_io = omap_ctrl_readl(OMAP343X_CONTROL_PROG_IO1);
-		/* Program (bit 19)=1 to disable internal pull-up on I2C1 */
-		prog_io |= OMAP3630_PRG_I2C1_PULLUPRESX;
-		/* Program (bit 0)=1 to disable internal pull-up on I2C2 */
-		prog_io |= OMAP3630_PRG_I2C2_PULLUPRESX;
-		omap_ctrl_writel(prog_io, OMAP343X_CONTROL_PROG_IO1);
-
-		prog_io = omap_ctrl_readl(OMAP36XX_CONTROL_PROG_IO2);
-		/* Program (bit 7)=1 to disable internal pull-up on I2C3 */
-		prog_io |= OMAP3630_PRG_I2C3_PULLUPRESX;
-		omap_ctrl_writel(prog_io, OMAP36XX_CONTROL_PROG_IO2);
-
-		prog_io = omap_ctrl_readl(OMAP36XX_CONTROL_PROG_IO_WKUP1);
-		/* Program (bit 5)=1 to disable internal pull-up on I2C4(SR) */
-		prog_io |= OMAP3630_PRG_SR_PULLUPRESX;
-		omap_ctrl_writel(prog_io, OMAP36XX_CONTROL_PROG_IO_WKUP1);
+	if (machine_is_omap_zoom2()) {
+		zoom_audio_data.ramp_delay_value = 3;	/* 161 ms */
+		zoom_audio_data.hs_extmute = 1;
+		zoom_audio_data.set_hs_extmute = zoom2_set_hs_extmute;
 	}
-
-	omap_register_i2c_bus(1, 100, NULL, zoom_i2c_boardinfo,
-			ARRAY_SIZE(zoom_i2c_boardinfo));
-	omap_register_i2c_bus(2, 100, NULL, zoom2_i2c_bus2_info,
-			ARRAY_SIZE(zoom2_i2c_bus2_info));
+	omap_pmic_init(1, 2400, "twl5030", INT_34XX_SYS_NIRQ, &zoom_twldata);
+	omap_register_i2c_bus(2, 400, NULL, 0);
+	omap_register_i2c_bus(3, 400, NULL, 0);
 	return 0;
 }
-
-static struct omap_musb_board_data musb_board_data = {
-	.interface_type		= MUSB_INTERFACE_ULPI,
-	.mode			= MUSB_OTG,
-	.power			= 100,
-};
-
-static struct omap_uart_port_info omap_serial_platform_data[] = {
-	{
-#if defined(CONFIG_SERIAL_OMAP_UART1_DMA)
-		.use_dma	= CONFIG_SERIAL_OMAP_UART1_DMA,
-		.dma_rx_buf_size = CONFIG_SERIAL_OMAP_UART1_RXDMA_BUFSIZE,
-		.dma_rx_timeout	= CONFIG_SERIAL_OMAP_UART1_RXDMA_TIMEOUT,
-#else
-		.use_dma	= 0,
-		.dma_rx_buf_size = 0,
-		.dma_rx_timeout	= 0,
-#endif /* CONFIG_SERIAL_OMAP_UART1_DMA */
-		.idle_timeout	= CONFIG_SERIAL_OMAP_IDLE_TIMEOUT,
-		.flags		= 1,
-	},
-	{
-#if defined(CONFIG_SERIAL_OMAP_UART2_DMA)
-		.use_dma	= CONFIG_SERIAL_OMAP_UART2_DMA,
-		.dma_rx_buf_size = CONFIG_SERIAL_OMAP_UART2_RXDMA_BUFSIZE,
-		.dma_rx_timeout	= CONFIG_SERIAL_OMAP_UART2_RXDMA_TIMEOUT,
-#else
-		.use_dma	= 0,
-		.dma_rx_buf_size = 0,
-		.dma_rx_timeout	= 0,
-#endif /* CONFIG_SERIAL_OMAP_UART2_DMA */
-		.idle_timeout	= CONFIG_SERIAL_OMAP_IDLE_TIMEOUT,
-		.flags		= 1,
-	},
-	{
-#if defined(CONFIG_SERIAL_OMAP_UART3_DMA)
-		.use_dma	= CONFIG_SERIAL_OMAP_UART3_DMA,
-		.dma_rx_buf_size = CONFIG_SERIAL_OMAP_UART3_RXDMA_BUFSIZE,
-		.dma_rx_timeout	= CONFIG_SERIAL_OMAP_UART3_RXDMA_TIMEOUT,
-#else
-		.use_dma	= 0,
-		.dma_rx_buf_size = 0,
-		.dma_rx_timeout	= 0,
-#endif /* CONFIG_SERIAL_OMAP_UART3_DMA */
-		.idle_timeout	= CONFIG_SERIAL_OMAP_IDLE_TIMEOUT,
-		.flags		= 1,
-	},
-	{
-#if defined(CONFIG_SERIAL_OMAP_UART4_DMA)
-		.use_dma	= CONFIG_SERIAL_OMAP_UART4_DMA,
-		.dma_rx_buf_size = CONFIG_SERIAL_OMAP_UART4_RXDMA_BUFSIZE,
-		.dma_rx_timeout	= CONFIG_SERIAL_OMAP_UART4_RXDMA_TIMEOUT,
-#else
-		.use_dma	= 0,
-		.dma_rx_buf_size = 0,
-		.dma_rx_timeout	= 0,
-#endif /* CONFIG_SERIAL_OMAP_UART3_DMA */
-		.idle_timeout	= CONFIG_SERIAL_OMAP_IDLE_TIMEOUT,
-		.flags		= 1,
-	},
-	{
-		.flags		= 0
-	}
-};
 
 static void enable_board_wakeup_source(void)
 {
@@ -481,10 +370,12 @@ static void enable_board_wakeup_source(void)
 
 void __init zoom_peripherals_init(void)
 {
+	if (wl12xx_set_platform_data(&omap_zoom_wlan_data))
+		pr_err("error setting wl12xx data\n");
+
 	omap_i2c_init();
-	synaptics_dev_init();
-	omap_serial_init(omap_serial_platform_data);
-	usb_musb_init(&musb_board_data);
+	platform_device_register(&omap_vwlan_device);
+	usb_musb_init(NULL);
 	enable_board_wakeup_source();
-	zoom2_cam_init();
+	omap_serial_init();
 }

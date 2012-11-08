@@ -12,7 +12,7 @@
 
 #include <linux/platform_device.h>
 #include <linux/err.h>
-#include <linux/slab.h>
+
 #include <plat/iommu.h>
 #include <plat/omap_device.h>
 #include <plat/omap_hwmod.h>
@@ -33,45 +33,56 @@ static struct iommu_platform_data omap3_devices_data[] = {
 		.name = "isp",
 		.oh_name = "isp",
 		.nr_tlb_entries = 8,
+		.da_start = 0x0,
+		.da_end = 0xFFFFF000,
 	},
-#if defined(CONFIG_MPU_BRIDGE_IOMMU)
+#if defined(CONFIG_OMAP_IOMMU_IVA2)
 	{
 		.name = "iva2",
 		.oh_name = "dsp",
 		.nr_tlb_entries = 32,
+		.da_start = 0x11000000,
+		.da_end = 0xFFFFF000,
 	},
 #endif
 };
 #define NR_OMAP3_IOMMU_DEVICES ARRAY_SIZE(omap3_devices_data)
-static struct platform_device *omap3_iommu_pdev[NR_OMAP3_IOMMU_DEVICES];
 #else
 #define omap3_devices_data	NULL
 #define NR_OMAP3_IOMMU_DEVICES	0
-#define omap3_iommu_pdev        NULL
 #endif
 
 #ifdef CONFIG_ARCH_OMAP4
+
+#define SET_DSP_CONSTRAINT	10
+#define SET_MPU_CORE_CONSTRAINT	10
+
 static struct iommu_platform_data omap4_devices_data[] = {
+#if 1//hongkeon.kim 2012-0427 blocked for i2c-3 fail //nthyunjin.yang 120515 use ducati
 	{
 		.name = "ducati",
 		.oh_name = "ipu",
 		.nr_tlb_entries = 32,
+		.da_start = 0x0,
+		.da_end = 0xFFFFF000,
+		.pm_constraint = SET_MPU_CORE_CONSTRAINT,
 	},
+#endif
 	{
 		.name = "tesla",
 		.oh_name = "dsp",
 		.nr_tlb_entries = 32,
+		.da_start = 0x0,
+		.da_end = 0xFFFFF000,
+		.pm_constraint = SET_DSP_CONSTRAINT,
 	},
+//#endif
 };
 #define NR_OMAP4_IOMMU_DEVICES ARRAY_SIZE(omap4_devices_data)
-static struct platform_device *omap4_iommu_pdev[NR_OMAP4_IOMMU_DEVICES];
 #else
 #define omap4_devices_data	NULL
 #define NR_OMAP4_IOMMU_DEVICES	0
-#define omap4_iommu_pdev        NULL
 #endif
-
-static struct platform_device **omap_iommu_pdev;
 
 static struct omap_device_pm_latency omap_iommu_latency[] = {
 	[0] = {
@@ -87,22 +98,24 @@ int iommu_get_plat_data_size(void)
 }
 EXPORT_SYMBOL(iommu_get_plat_data_size);
 
+struct iommu_platform_data *iommu_get_device_data(void)
+{
+	return devices_data;
+}
+
 static int __init omap_iommu_init(void)
 {
 	int i, ohl_cnt;
 	struct omap_hwmod *oh;
 	struct omap_device *od;
 	struct omap_device_pm_latency *ohl;
-	struct platform_device *pdev;
 
 	if (cpu_is_omap34xx()) {
 		devices_data = omap3_devices_data;
 		num_iommu_devices = NR_OMAP3_IOMMU_DEVICES;
-		omap_iommu_pdev = omap3_iommu_pdev;
 	} else if (cpu_is_omap44xx()) {
 		devices_data = omap4_devices_data;
 		num_iommu_devices = NR_OMAP4_IOMMU_DEVICES;
-		omap_iommu_pdev = omap4_iommu_pdev;
 	} else
 		return -ENODEV;
 
@@ -113,8 +126,6 @@ static int __init omap_iommu_init(void)
 		struct iommu_platform_data *data = &devices_data[i];
 
 		oh = omap_hwmod_lookup(data->oh_name);
-		if (oh == NULL)
-			continue;
 		data->io_base = oh->_mpu_rt_va;
 		data->irq = oh->mpu_irqs[0].irq;
 
@@ -128,25 +139,10 @@ static int __init omap_iommu_init(void)
 					ohl, ohl_cnt, false);
 		WARN(IS_ERR(od), "Could not build omap_device"
 				"for %s %s\n", "omap-iommu", data->oh_name);
-
-		pdev = platform_device_alloc("omap-iovmm", i);
-		if (pdev) {
-			platform_device_add_data(pdev, data, sizeof(*data));
-			platform_device_add(pdev);
-		}
-		omap_iommu_pdev[i] = pdev;
 	}
 	return 0;
 }
-postcore_initcall(omap_iommu_init);
-
-static void __exit omap_iommu_exit(void)
-{
-	int i;
-	for (i = 0; i < num_iommu_devices; i++)
-		platform_device_unregister(omap_iommu_pdev[i]);
-}
-module_exit(omap_iommu_exit);
+module_init(omap_iommu_init);
 
 MODULE_AUTHOR("Hiroshi DOYU");
 MODULE_AUTHOR("Hari Kanigeri");

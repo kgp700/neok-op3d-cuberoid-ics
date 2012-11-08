@@ -21,19 +21,7 @@
 
 #ifdef __KERNEL__
 
-#define VIB_NAME "vib-twl6040"
-
-struct twl6040_vib_platform_data {
-	/*unsigned 	gpio;*/
-	int		max_timeout;
-	u8 		active_low;
-	int		initial_vibrate;
-
-	int (*init)(void);
-	void (*exit)(void);
-	/*int (*power_on)(void);
-	int (*power_off)(void);*/
-};
+#define VIB_NAME "twl6040-vibra"
 
 #endif /* __KERNEL__ */
 

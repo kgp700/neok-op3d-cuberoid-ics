@@ -28,7 +28,7 @@
 
 #ifndef MPL_IUS_BUILD
 #define MPL_IKR_BUILD //IKR local copy
-#endif 
+#endif
 
 
 /**
@@ -39,8 +39,9 @@ FEATURES DEFIED BY IKR
 #define FEATURE_USES_9AXIS_FUSION
 #define FEATURE_USES_LPF
 #define FEATURE_USES_TIMERIRQ
-#define FEATURE_USES_GM
+//#define FEATURE_USES_GM
 #endif //MPL_IKR_BUILD
+
 
 
 
@@ -106,6 +107,8 @@ FEATURES DEFIED BY IKR
 #define MPU_GET_CONFIG_ACCEL        (0x28)
 #define MPU_GET_CONFIG_COMPASS      (0x29)
 #define MPU_GET_CONFIG_PRESSURE     (0x2a)
+
+
 
 /* Structure for the following IOCTL's:
    MPU_SET_RAM
@@ -181,7 +184,7 @@ enum ext_slave_id {
 	ACCEL_ID_KXTF9,
 	ACCEL_ID_BMA150,
 	ACCEL_ID_BMA222,
-	ACCEL_ID_BMA250,	
+	ACCEL_ID_BMA250,
 	ACCEL_ID_ADI346,
 	ACCEL_ID_MMA8450,
 	ACCEL_ID_MMA845X,

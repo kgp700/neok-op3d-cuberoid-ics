@@ -42,6 +42,7 @@
 #define MCPDM_FIFO_CTRL_DN	0x50
 #define MCPDM_FIFO_CTRL_UP	0x54
 #define MCPDM_DN_OFFSET		0x58
+#define MCPDM_STATUS		0x68
 
 /*
  * MCPDM_IRQ bit fields
@@ -67,11 +68,6 @@
 
 #define DMA_DN_ENABLE		0x1
 #define DMA_UP_ENABLE		0x2
-
-/*
- * MCPDM_SYSCONFIG bit fields
- */
-#define MCPDM_SOFTRESET		0x1
 
 /*
  * MCPDM_CTRL bit fields
@@ -120,12 +116,5 @@
 
 #define MCPDM_UPLINK		1
 #define MCPDM_DOWNLINK		2
-
-struct omap_mcpdm_link {
-	int irq_mask;
-	int threshold;
-	int format;
-	int channels;
-};
 
 #endif	/* End of __OMAP_MCPDM_H__ */

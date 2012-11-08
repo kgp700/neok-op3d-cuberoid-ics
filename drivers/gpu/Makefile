@@ -1,2 +1,1 @@
-obj-y			+= drm/ vga/
-obj-y			+= pvr/
+obj-y			+= drm/ vga/ stub/ ion/

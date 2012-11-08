@@ -28,7 +28,7 @@
 #include <linux/platform_device.h>
 #include <linux/delay.h>
 #include <linux/slab.h>
-#include <plat/display.h>
+#include <video/omapdss.h>
 #include <plat/cpu.h>
 
 #include "dss.h"
@@ -45,13 +45,13 @@ static ssize_t writeback_attr_show(struct kobject *kobj, struct attribute *attr,
 return 0;
 }
 
-static ssize_t writeback_attr_store(struct kobject *kobj, struct attribute *attr,
-		const char *buf, size_t size)
+static ssize_t writeback_attr_store(struct kobject *kobj,
+		struct attribute *attr, const char *buf, size_t size)
 {
 return 0;
 }
 
-static struct sysfs_ops writeback_sysfs_ops = {
+static const struct sysfs_ops writeback_sysfs_ops = {
 	.show = writeback_attr_show,
 	.store = writeback_attr_store,
 };
@@ -61,34 +61,38 @@ static struct kobj_type writeback_ktype = {
 	.default_attrs = writeback_sysfs_attrs,
 };
 
-bool omap_dss_check_wb(struct writeback_cache_data *wb, int overlayId, int managerId)
+bool omap_dss_check_wb(struct writeback_cache_data *wb, int overlayId,
+			int managerId)
 {
 	bool result = false;
-	DSSDBG("ovl=%d,mgr=%d,srcty=%d(%s),src=%d\n",
-	   overlayId, managerId, wb->source_type,
-	   wb->source_type == OMAP_WB_SOURCE_OVERLAY ? "OMAP_WB_SOURCE_OVERLAY" :
-	   wb->source_type == OMAP_WB_SOURCE_MANAGER ? "OMAP_WB_SOURCE_MANAGER" : "???",
+	DSSDBG("ovl=%d,mgr=%d,mode=%s(%s),src=%d\n",
+	   overlayId, managerId,
+	   wb->mode == OMAP_WB_MEM2MEM_MODE ? "mem2mem" : "capture",
+	   wb->source >= OMAP_WB_GFX ? "overlay" : "manager",
 	   wb->source);
 
-	if ((wb->source_type == OMAP_WB_SOURCE_OVERLAY) &&
+	if ((wb->mode == OMAP_WB_MEM2MEM_MODE) &&
 				((wb->source - 3) == overlayId))
 		result = true;
-	else if (wb->source_type == OMAP_WB_SOURCE_MANAGER) {
+	else if (wb->mode == OMAP_WB_CAPTURE_MODE) {
 		switch (wb->source) {
-		case OMAP_WB_LCD_1_MANAGER:
+		case OMAP_WB_LCD1:
 			if (managerId == OMAP_DSS_CHANNEL_LCD)
 				result = true;
-		case OMAP_WB_LCD_2_MANAGER:
+			break;
+		case OMAP_WB_LCD2:
 			if (managerId == OMAP_DSS_CHANNEL_LCD2)
 				result = true;
-		case OMAP_WB_TV_MANAGER:
+			break;
+		case OMAP_WB_TV:
 			if (managerId == OMAP_DSS_CHANNEL_DIGIT)
 				result = true;
-		case OMAP_WB_OVERLAY0:
-		case OMAP_WB_OVERLAY1:
-		case OMAP_WB_OVERLAY2:
-		case OMAP_WB_OVERLAY3:
-				break;
+			break;
+		case OMAP_WB_GFX:
+		case OMAP_WB_VID1:
+		case OMAP_WB_VID2:
+		case OMAP_WB_VID3:
+			break;
 		}
 	}
 
@@ -98,9 +102,8 @@ bool omap_dss_check_wb(struct writeback_cache_data *wb, int overlayId, int manag
 
 static bool dss_check_wb(struct omap_writeback *wb)
 {
-	DSSDBG("srcty=%d(%s),src=%d\n", wb->info.source_type,
-	   wb->info.source_type == OMAP_WB_SOURCE_OVERLAY ? "OMAP_WB_SOURCE_OVERLAY" :
-	   wb->info.source_type == OMAP_WB_SOURCE_MANAGER ? "OMAP_WB_SOURCE_MANAGER" : "???",
+	DSSDBG("srctype=%s,src=%d\n",
+	   wb->info.source >= OMAP_WB_GFX ? "overlay" : "manager",
 	   wb->info.source);
 
 	return 0;
@@ -143,6 +146,7 @@ struct omap_writeback *omap_dss_get_wb(int num)
 
 	return NULL;
 }
+EXPORT_SYMBOL(omap_dss_get_wb);
 
 static __attribute__ ((unused)) void omap_dss_add_wb(struct omap_writeback *wb)
 {
@@ -157,23 +161,34 @@ void dss_init_writeback(struct platform_device *pdev)
 
 	INIT_LIST_HEAD(&wb_list);
 
+	wb = kzalloc(sizeof(*wb), GFP_KERNEL);
 
-		wb = kzalloc(sizeof(*wb), GFP_KERNEL);
+	BUG_ON(wb == NULL);
 
-		BUG_ON(wb == NULL);
+	wb->check_wb = &dss_check_wb;
+	wb->set_wb_info = &omap_dss_wb_set_info;
+	wb->get_wb_info = &omap_dss_wb_get_info;
+	mutex_init(&wb->lock);
 
-		wb->check_wb = &dss_check_wb;
-		wb->set_wb_info = &omap_dss_wb_set_info;
-		wb->get_wb_info = &omap_dss_wb_get_info;
-		mutex_init(&wb->lock);
+	omap_dss_add_wb(wb);
 
-		omap_dss_add_wb(wb);
+	r = kobject_init_and_add(&wb->kobj, &writeback_ktype,
+			&pdev->dev.kobj, "writeback%d", 0);
 
-		r = kobject_init_and_add(&wb->kobj, &writeback_ktype,
-				&pdev->dev.kobj, "writeback", 0);
+	if (r)
+		DSSERR("failed to create sysfs file\n");
+}
 
-		if (r) {
-			DSSERR("failed to create sysfs file\n");
-		}
+void dss_uninit_writeback(struct platform_device *pdev)
+{
+	struct omap_writeback *wb;
 
+	while (!list_empty(&wb_list)) {
+		wb = list_first_entry(&wb_list,
+				struct omap_writeback, list);
+		list_del(&wb->list);
+		kobject_del(&wb->kobj);
+		kobject_put(&wb->kobj);
+		kfree(wb);
+	}
 }

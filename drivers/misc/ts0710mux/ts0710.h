@@ -97,9 +97,8 @@
 #define TS0710_MAX_HDR_SIZE 5
 #ifdef LGE_KERNEL_MUX
 
-
-#define MAX_FRAME_SIZE 1516
-
+//In the LG U+ network, the max size of IP data is 2600. IMS requirement.
+#define MAX_FRAME_SIZE 2617
 
 #define DEF_TS0710_MTU (MAX_FRAME_SIZE - (TS0710_MAX_HDR_SIZE+2))
 #else
@@ -345,4 +344,5 @@ enum mux_frametype {
 	MUX_UI		= 0x03,
     MUX_PN		= 0x20,
 };
+
 

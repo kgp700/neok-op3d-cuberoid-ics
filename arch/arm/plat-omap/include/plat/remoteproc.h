@@ -1,150 +1,249 @@
 /*
- * OMAP Remote Processor driver
+ * Remote Processor - omap-specific bits
  *
- * Copyright (C) 2010 Texas Instruments Inc.
- *
- * Written by Ohad Ben-Cohen <ohad@wizery.com>
+ * Copyright (C) 2011 Texas Instruments, Inc.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * version 2 as published by the Free Software Foundation.
  *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
- * 02110-1301 USA
- *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
-#ifndef REMOTEPROC_H
-#define REMOTEPROC_H
+#ifndef _PLAT_REMOTEPROC_H
+#define _PLAT_REMOTEPROC_H
 
-#include <linux/ioctl.h>
-#include <linux/cdev.h>
+#include <linux/remoteproc.h>
+#include <plat/omap_device.h>
 
-#define RPROC_IOC_MAGIC		'P'
+/*
+ * struct omap_rproc_timers_info - optional timers for the omap rproc
+ *
+ * @id: timer id to use by the remoteproc
+ * @odt: timer pointer
+ */
+struct omap_rproc_timers_info {
+	int id;
+	struct omap_dm_timer *odt;
+};
 
-#define RPROC_IOCMONITOR	_IO(RPROC_IOC_MAGIC, 0)
-#define RPROC_IOCSTART		_IO(RPROC_IOC_MAGIC, 1)
-#define RPROC_IOCSTOP		_IO(RPROC_IOC_MAGIC, 2)
-#define RPROC_IOCGETSTATE	_IOR(RPROC_IOC_MAGIC, 3, int)
-#define RPROC_IOCREGEVENT	_IOR(RPROC_IOC_MAGIC, 4, \
-					struct omap_rproc_reg_event_args)
-#define RPROC_IOCUNREGEVENT	_IOR(RPROC_IOC_MAGIC, 5, \
-					struct omap_rproc_reg_event_args)
+/*
+ * struct omap_rproc_pdata - platform data for the omap rproc implementation
+ *
+ * @name: human readable name of the rproc, cannot exceed RPROC_MAN_NAME bytes
+ * @iommu_name: iommu device we're behind of
+ * @oh_name: omap hwmod device
+ * @oh_name_opt: optional, secondary omap hwmod device
+ * @firmware: name of firmware file to be loaded
+ * @clkdm_name: name of clock domain in which this device is located
+ * @clkdm: clock domain in which this device is located
+ * @ops: platform-specific start/stop rproc handlers
+ * @memory_maps: table of da-to-pa iommu memory maps
+ * @memory_pool: platform-specific pool data
+ * @omap_rproc_timers_info: optional, timer(s) rproc can use
+ * @boot_reg: optional, control register for storing boot address
+ */
+struct omap_rproc_pdata {
+	const char *name;
+	const char *iommu_name;
+	const char *oh_name;
+	const char *oh_name_opt;
+	const char *firmware;
+	const char *clkdm_name;
+	struct clockdomain *clkdm;
+	const struct rproc_ops *ops;
+	struct rproc_mem_pool *memory_pool;
+	struct omap_rproc_timers_info *timers;
+	u32 idle_addr;
+	u32 idle_mask;
+	u32 suspend_addr;
+	u32 suspend_mask;
+	unsigned sus_timeout;
+	u32 boot_reg;
+	char *sus_mbox_name;
+	u8 timers_cnt;
+};
 
-#define RPROC_IOC_MAXNR		(5)
+enum omap_rproc_mempool_type {
+	OMAP_RPROC_MEMPOOL_STATIC,
+	OMAP_RPROC_MEMPOOL_DYNAMIC
+};
 
-#ifdef CONFIG_ARCH_OMAP4
-#define NR_RPROC_OMAP4_DEVICES 3
+#if defined(CONFIG_OMAP_REMOTE_PROC_DSP)
+extern void omap_dsp_reserve_sdram_memblock(void);
+phys_addr_t omap_dsp_get_mempool_tsize(enum omap_rproc_mempool_type type);
+phys_addr_t omap_dsp_get_mempool_tbase(enum omap_rproc_mempool_type type);
+void omap_dsp_set_static_mempool(u32 start, u32 size);
 #else
-#define NR_RPROC_OMAP4_DEVICES 0
+static inline phys_addr_t omap_dsp_get_mempool_tsize
+					(enum omap_rproc_mempool_type type)
+{
+	return 0;
+}
+static inline phys_addr_t omap_dsp_get_mempool_tbase(
+					enum omap_rproc_mempool_type type)
+{
+	return 0;
+}
+static inline void omap_dsp_set_static_mempool(u32 start, u32 size) { }
 #endif
 
-struct omap_rproc;
+#if defined(CONFIG_OMAP_REMOTE_PROC_IPU)
+void omap_ipu_reserve_sdram_memblock(void);
+u32 omap_ipu_get_mempool_size(enum omap_rproc_mempool_type type);
+phys_addr_t omap_ipu_get_mempool_base(enum omap_rproc_mempool_type type);
+void omap_ipu_set_static_mempool(u32 start, u32 size);
+#else
+static inline void omap_ipu_reserve_sdram_memblock(void) { }
+static inline u32 omap_ipu_get_mempool_size(enum omap_rproc_mempool_type type)
+{
+	return 0;
+}
+static inline phys_addr_t omap_ipu_get_mempool_base(
+					enum omap_rproc_mempool_type type)
+{
+	return 0;
+}
+static inline void omap_ipu_set_static_mempool(u32 start, u32 size) { }
+#endif
 
-struct omap_rproc_ops {
-	int (*start)(struct device *dev, u32 start_addr);
-	int (*stop)(struct device *dev);
-	int (*sleep)(struct device *dev);
-	int (*wakeup)(struct device *dev);
-	int (*get_state)(struct device *dev);
+int omap_rproc_deactivate(struct omap_device *od);
+int omap_rproc_activate(struct omap_device *od);
+#define OMAP_RPROC_DEFAULT_PM_LATENCY \
+	.deactivate_func = omap_rproc_deactivate, \
+	.activate_func = omap_rproc_activate, \
+	.flags = OMAP_DEVICE_LATENCY_AUTO_ADJUST
+
+struct exc_regs {
+	u32  r0;
+	u32  r1;
+	u32  r2;
+	u32  r3;
+	u32  r4;
+	u32  r5;
+	u32  r6;
+	u32  r7;
+	u32  r8;
+	u32  r9;
+	u32  r10;
+	u32  r11;
+	u32  r12;
+	u32  sp;
+	u32  lr;
+	u32  pc;
+	u32  psr;
+	u32  ICSR; /* NVIC registers */
+	u32  MMFSR;
+	u32  BFSR;
+	u32  UFSR;
+	u32  HFSR;
+	u32  DFSR;
+	u32  MMAR;
+	u32  BFAR;
+	u32  AFSR;
 };
 
-struct omap_rproc_clk_t {
-	void *clk_handle;
-	const char *dev_id;
-	const char *con_id;
+struct exc_dspRegs {
+	u32 ILC;
+	u32 RILC;
+	u32 AMR;
+	u32 SSR;
+	u32 IRP;
+	u32 NRP;
+	u32 ITSR;
+	u32 NTSR;
+	u32 EFR;
+	u32 IERR;
+	u32 b30;
+	u32 b31;
+	u32 b28;
+	u32 b29;
+	u32 b26;
+	u32 b27;
+	u32 b24;
+	u32 b25;
+	u32 b22;
+	u32 b23;
+	u32 b20;
+	u32 b21;
+	u32 b18;
+	u32 b19;
+	u32 b16;
+	u32 b17;
+	u32 b14;
+	u32 b15;
+	u32 b12;
+	u32 b13;
+	u32 b10;
+	u32 b11;
+	u32 b8;
+	u32 b9;
+	u32 b6;
+	u32 b7;
+	u32 b4;
+	u32 b5;
+	u32 b2;
+	u32 b3;
+	u32 b0;
+	u32 b1;
+	u32 a30;
+	u32 a31;
+	u32 a28;
+	u32 a29;
+	u32 a26;
+	u32 a27;
+	u32 a24;
+	u32 a25;
+	u32 a22;
+	u32 a23;
+	u32 a20;
+	u32 a21;
+	u32 a18;
+	u32 a19;
+	u32 a16;
+	u32 a17;
+	u32 a14;
+	u32 a15;
+	u32 a12;
+	u32 a13;
+	u32 a10;
+	u32 a11;
+	u32 a8;
+	u32 a9;
+	u32 a6;
+	u32 a7;
+	u32 a4;
+	u32 a5;
+	u32 a2;
+	u32 a3;
+	u32 a0;
+	u32 a1;
 };
 
-/* RPROC events. */
-enum {
-	OMAP_RPROC_START,
-	OMAP_RPROC_STOP,
-};
+static inline void remoteproc_fill_pt_regs(struct pt_regs *regs,
+				struct exc_regs *xregs)
+{
+	regs->ARM_r0  = xregs->r0;
+	regs->ARM_ORIG_r0  = xregs->r0;
+	regs->ARM_r1  = xregs->r1;
+	regs->ARM_r2  = xregs->r2;
+	regs->ARM_r3  = xregs->r3;
+	regs->ARM_r4  = xregs->r4;
+	regs->ARM_r5  = xregs->r5;
+	regs->ARM_r6  = xregs->r6;
+	regs->ARM_r7  = xregs->r7;
+	regs->ARM_r8  = xregs->r8;
+	regs->ARM_r9  = xregs->r9;
+	regs->ARM_r10 = xregs->r10;
+	regs->ARM_fp  = xregs->r11;
+	regs->ARM_ip  = xregs->r12;
+	regs->ARM_sp  = xregs->sp;
+	regs->ARM_lr  = xregs->lr;
+	regs->ARM_pc  = xregs->pc;
+	regs->ARM_cpsr = xregs->psr;
+}
 
-/* RPROC states. */
-enum {
-	OMAP_RPROC_STOPPED,
-	OMAP_RPROC_RUNNING,
-	OMAP_RPROC_HIBERNATING,
-};
-
-enum {
-	PROC_ERROR = 1,
-	PROC_STOP,
-	PROC_START,
-};
-
-struct omap_rproc_common_args {
-	int status;
-};
-
-
-struct omap_rproc_platform_data {
-	struct omap_rproc_ops *ops;
-	char *name;
-	char *oh_name;
-	int timer_hib_id;
-	int timer_clk_id;
-};
-
-struct omap_rproc {
-	const char *name;
-	struct device *dev;
-	struct cdev cdev;
-	atomic_t count;
-	int state;
-	int minor;
-	struct blocking_notifier_head	notifier;
-	struct mutex lock;
-	int timer_hib_id;
-	int timer_clk_id;
-	struct omap_dm_timer *dmtimer;
-	struct omap_dm_timer *dmtimer_clk;
-	struct list_head event_list;
-	spinlock_t event_lock;
-};
-
-struct omap_rproc_ntfy {
-	struct list_head list;
-	int fd;
-	struct eventfd_ctx *evt_ctx;
-	u32 event;
-};
-
-struct omap_rproc_start_args {
-	u32 start_addr;
-};
-
-struct omap_rproc_reg_event_args {
-	struct omap_rproc_common_args cargs;
-	u16 pro_id;
-	int fd;
-	u32 event;
-};
-
-extern int rproc_start(struct omap_rproc *rproc, const void __user *arg);
-extern int rproc_stop(struct omap_rproc *rproc);
-extern int rproc_sleep(struct omap_rproc *rproc);
-extern int rproc_wakeup(struct omap_rproc *rproc);
-
-extern int omap_rproc_register_notifier(struct omap_rproc *rproc,
-					struct notifier_block *nb);
-extern int omap_rproc_unregister_notifier(struct omap_rproc *rproc,
-					struct notifier_block *nb);
-extern int omap_rproc_notify_event(struct omap_rproc *obj, int event,
-								void *data);
-
-extern struct omap_rproc *omap_rproc_get(const char *name);
-extern void omap_rproc_put(struct omap_rproc *obj);
-
-struct omap_rproc_platform_data *omap3_get_rproc_data(void);
-int omap3_get_rproc_data_size(void);
-struct omap_rproc_platform_data *omap4_get_rproc_data(void);
-#endif /* REMOTEPROC_H */
+#endif /* _PLAT_REMOTEPROC_H */

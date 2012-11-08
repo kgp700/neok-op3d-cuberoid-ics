@@ -32,8 +32,7 @@ static struct dentry *iommu_debug_root;
 static ssize_t debug_read_ver(struct file *file, char __user *userbuf,
 			      size_t count, loff_t *ppos)
 {
-	struct iommu *obj = file->private_data;
-	u32 ver = iommu_arch_version(obj);
+	u32 ver = iommu_arch_version();
 	char buf[MAXCOLUMN], *p = buf;
 
 	p += sprintf(p, "H/W version: %d.%d\n", (ver >> 4) & 0xf , ver & 0xf);
@@ -329,12 +328,14 @@ static int debug_open_generic(struct inode *inode, struct file *file)
 		.open = debug_open_generic,				\
 		.read = debug_read_##name,				\
 		.write = debug_write_##name,				\
+		.llseek = generic_file_llseek,				\
 	};
 
 #define DEBUG_FOPS_RO(name)						\
 	static const struct file_operations debug_##name##_fops = {	\
 		.open = debug_open_generic,				\
 		.read = debug_read_##name,				\
+		.llseek = generic_file_llseek,				\
 	};
 
 DEBUG_FOPS_RO(ver);

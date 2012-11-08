@@ -1,21 +1,89 @@
+if ARCH_OMAP2PLUS
+
+menu "TI OMAP2/3/4 Specific Features"
+
+config ARCH_OMAP2PLUS_TYPICAL
+	bool "Typical OMAP configuration"
+	default y
+	select AEABI
+	select REGULATOR
+	select PM
+	select PM_RUNTIME
+	select VFP
+	select NEON if ARCH_OMAP3 || ARCH_OMAP4
+	select SERIAL_OMAP
+	select SERIAL_OMAP_CONSOLE
+	select I2C
+	select I2C_OMAP
+	select MFD_SUPPORT
+	select MENELAUS if ARCH_OMAP2
+	select TWL4030_CORE if ARCH_OMAP3 || ARCH_OMAP4
+	select TWL4030_POWER if ARCH_OMAP3 || ARCH_OMAP4
+	help
+	  Compile a kernel suitable for booting most boards
+
+config ARCH_OMAP2
+	bool "TI OMAP2"
+	depends on ARCH_OMAP2PLUS
+	default y
+	select CPU_V6
+
+config ARCH_OMAP3
+	bool "TI OMAP3"
+	depends on ARCH_OMAP2PLUS
+	default y
+	select CPU_V7
+	select USB_ARCH_HAS_EHCI
+	select ARM_L1_CACHE_SHIFT_6 if !ARCH_OMAP4
+	select ARCH_HAS_OPP
+	select PM_OPP if PM
+
+config ARCH_OMAP4
+	bool "TI OMAP4"
+	default y
+	depends on ARCH_OMAP2PLUS
+	select CPU_V7
+	select ARM_GIC
+	select LOCAL_TIMERS if SMP
+	select PL310_ERRATA_727915 if CACHE_L2X0
+	select ARM_ERRATA_720789
+	select ARCH_HAS_OPP
+	select PM_OPP if PM
+	select USB_ARCH_HAS_EHCI
+	select ARCH_HAS_BARRIERS
+
 comment "OMAP Core Type"
 	depends on ARCH_OMAP2
 
-config ARCH_OMAP2420
+config SOC_OMAP2420
 	bool "OMAP2420 support"
 	depends on ARCH_OMAP2
+	default y
 	select OMAP_DM_TIMER
 	select ARCH_OMAP_OTG
 
-config ARCH_OMAP2430
+config SOC_OMAP2430
 	bool "OMAP2430 support"
 	depends on ARCH_OMAP2
+	default y
 	select ARCH_OMAP_OTG
 
-config ARCH_OMAP3430
+config SOC_OMAP3430
 	bool "OMAP3430 support"
 	depends on ARCH_OMAP3
+	default y
 	select ARCH_OMAP_OTG
+
+config SOC_OMAPTI816X
+	bool "TI816X support"
+	depends on ARCH_OMAP3
+	default y
+
+config OMAP_PACKAGE_ZAF
+       bool
+
+config OMAP_PACKAGE_ZAC
+       bool
 
 config OMAP_PACKAGE_CBC
        bool
@@ -29,69 +97,111 @@ config OMAP_PACKAGE_CUS
 config OMAP_PACKAGE_CBP
        bool
 
+config OMAP_PACKAGE_CBL
+       bool
+
+config OMAP_PACKAGE_CBS
+       bool
+
 comment "OMAP Board Type"
 	depends on ARCH_OMAP2PLUS
 
 config MACH_OMAP_GENERIC
 	bool "Generic OMAP board"
 	depends on ARCH_OMAP2
+	default y
 
 config MACH_OMAP2_TUSB6010
 	bool
-	depends on ARCH_OMAP2 && ARCH_OMAP2420
+	depends on ARCH_OMAP2 && SOC_OMAP2420
 	default y if MACH_NOKIA_N8X0
 
 config MACH_OMAP_H4
 	bool "OMAP 2420 H4 board"
-	depends on ARCH_OMAP2
+	depends on SOC_OMAP2420
+	default y
+	select OMAP_PACKAGE_ZAF
 	select OMAP_DEBUG_DEVICES
 
 config MACH_OMAP_APOLLON
 	bool "OMAP 2420 Apollon board"
-	depends on ARCH_OMAP2
+	depends on SOC_OMAP2420
+	default y
+	select OMAP_PACKAGE_ZAC
 
 config MACH_OMAP_2430SDP
 	bool "OMAP 2430 SDP board"
-	depends on ARCH_OMAP2
+	depends on SOC_OMAP2430
+	default y
+	select OMAP_PACKAGE_ZAC
 
 config MACH_OMAP3_BEAGLE
 	bool "OMAP3 BEAGLE board"
 	depends on ARCH_OMAP3
+	default y
 	select OMAP_PACKAGE_CBB
 
 config MACH_DEVKIT8000
 	bool "DEVKIT8000 board"
 	depends on ARCH_OMAP3
+	default y
 	select OMAP_PACKAGE_CUS
-	select OMAP_MUX
 
 config MACH_OMAP_LDP
 	bool "OMAP3 LDP board"
 	depends on ARCH_OMAP3
+	default y
 	select OMAP_PACKAGE_CBB
+
+config MACH_OMAP3530_LV_SOM
+	bool "OMAP3 Logic 3530 LV SOM board"
+	depends on ARCH_OMAP3
+	select OMAP_PACKAGE_CBB
+	default y
+	help
+	 Support for the LogicPD OMAP3530 SOM Development kit
+	 for full description please see the products webpage at
+	 http://www.logicpd.com/products/development-kits/texas-instruments-zoom%E2%84%A2-omap35x-development-kit
+
+config MACH_OMAP3_TORPEDO
+	bool "OMAP3 Logic 35x Torpedo board"
+	depends on ARCH_OMAP3
+	select OMAP_PACKAGE_CBB
+	default y
+	help
+	 Support for the LogicPD OMAP35x Torpedo Development kit
+	 for full description please see the products webpage at
+	 http://www.logicpd.com/products/development-kits/zoom-omap35x-torpedo-development-kit
 
 config MACH_OVERO
 	bool "Gumstix Overo board"
 	depends on ARCH_OMAP3
+	default y
 	select OMAP_PACKAGE_CBB
 
 config MACH_OMAP3EVM
 	bool "OMAP 3530 EVM board"
 	depends on ARCH_OMAP3
+	default y
 	select OMAP_PACKAGE_CBB
 
+## LGE_SJIT_S 2011-08-25 [choongryeol.lee@lge.com]
 config WIFI_CONTROL_FUNC
         bool "Enable WiFi control function abstraction"
-#LGE_CHANGES_S Wi-Fi jiwoong.eom@lge.com 20101124 for TI WLAN kernel 35 ver.
-        depends on MACH_OMAP_4430SDP || MACH_LGE_COSMOPOLITAN
-#LGE_CHANGES_E Wi-Fi jiwoong.eom@lge.com 20101124 for TI WLAN kernel 35 ver.
-        select WIRELESS_EXT
-        select WEXT_CORE
-        select WEXT_PROC
-        select WEXT_PRIV
+# 20110701 real-wifi@lge.com by wo0gi, Add CONFIG_MACH_LGE_HDK [START]
+	depends on MACH_OMAP_4430SDP || MACH_OMAP_ZOOM2 || MACH_OMAP_ZOOM3 || MACH_LGE
+# 20110701 real-wifi@lge.com by wo0gi, Add CONFIG_MACH_LGE_HDK [END]
+# 122011 x0136505@ti.com by Prakash for CDC driver support 
+# LGE can change this accordingly
+#        select WIRELESS_EXT
+#        select WEXT_CORE
+#        select WEXT_PROC
+#        select WEXT_PRIV
+	select CDC_TCXO
         default Y
         help
            Enables Power/Reset/Carddetect function abstraction
+
 config TIWLAN_SDIO
         bool "TI WLAN Enhanced SDIO Contoller support"
         depends on MMC_OMAP || MMC_OMAP_MODULE || MMC_OMAP_HS || MMC_OMAP_HS_MODULE
@@ -107,25 +217,36 @@ config TIWLAN_MMC_CONTROLLER
           Choose the number of the MMC controller that TI WLAN chip is
           connected to. TI WLAN has SDIO host controller that will control
           this MMC port.
+## LGE_SJIT_S 2011-08-25 [choongryeol.lee@lge.com]
 
 config MACH_OMAP3517EVM
 	bool "OMAP3517/ AM3517 EVM board"
+	depends on ARCH_OMAP3
+	default y
+	select OMAP_PACKAGE_CBB
+
+config MACH_CRANEBOARD
+	bool "AM3517/05 CRANE board"
 	depends on ARCH_OMAP3
 	select OMAP_PACKAGE_CBB
 
 config MACH_OMAP3_PANDORA
 	bool "OMAP3 Pandora"
 	depends on ARCH_OMAP3
+	default y
 	select OMAP_PACKAGE_CBB
+	select REGULATOR_FIXED_VOLTAGE
 
 config MACH_OMAP3_TOUCHBOOK
 	bool "OMAP3 Touch Book"
 	depends on ARCH_OMAP3
+	default y
 	select BACKLIGHT_CLASS_DEVICE
 
 config MACH_OMAP_3430SDP
 	bool "OMAP 3430 SDP board"
 	depends on ARCH_OMAP3
+	default y
 	select OMAP_PACKAGE_CBB
 
 config MACH_NOKIA_N800
@@ -139,255 +260,151 @@ config MACH_NOKIA_N810_WIMAX
 
 config MACH_NOKIA_N8X0
 	bool "Nokia N800/N810"
-	depends on ARCH_OMAP2420
+	depends on SOC_OMAP2420
+	default y
+	select OMAP_PACKAGE_ZAC
 	select MACH_NOKIA_N800
 	select MACH_NOKIA_N810
 	select MACH_NOKIA_N810_WIMAX
 
+config MACH_NOKIA_RM680
+	bool "Nokia RM-680 board"
+	depends on ARCH_OMAP3
+	default y
+	select OMAP_PACKAGE_CBB
+
 config MACH_NOKIA_RX51
 	bool "Nokia RX-51 board"
 	depends on ARCH_OMAP3
+	default y
 	select OMAP_PACKAGE_CBB
 
 config MACH_OMAP_ZOOM2
 	bool "OMAP3 Zoom2 board"
 	depends on ARCH_OMAP3
+	default y
 	select OMAP_PACKAGE_CBB
 	select SERIAL_8250
 	select SERIAL_CORE_CONSOLE
 	select SERIAL_8250_CONSOLE
+	select REGULATOR_FIXED_VOLTAGE
 
 config MACH_OMAP_ZOOM3
 	bool "OMAP3630 Zoom3 board"
 	depends on ARCH_OMAP3
+	default y
 	select OMAP_PACKAGE_CBP
 	select SERIAL_8250
 	select SERIAL_CORE_CONSOLE
 	select SERIAL_8250_CONSOLE
+	select REGULATOR_FIXED_VOLTAGE
 
 config MACH_CM_T35
 	bool "CompuLab CM-T35 module"
 	depends on ARCH_OMAP3
+	default y
 	select OMAP_PACKAGE_CUS
-	select OMAP_MUX
+
+config MACH_CM_T3517
+	bool "CompuLab CM-T3517 module"
+	depends on ARCH_OMAP3
+	default y
+	select OMAP_PACKAGE_CBB
 
 config MACH_IGEP0020
 	bool "IGEP v2 board"
 	depends on ARCH_OMAP3
+	default y
 	select OMAP_PACKAGE_CBB
+
+config MACH_IGEP0030
+	bool "IGEP OMAP3 module"
+	depends on ARCH_OMAP3
+	default y
+	select OMAP_PACKAGE_CBB
+	select MACH_IGEP0020
 
 config MACH_SBC3530
 	bool "OMAP3 SBC STALKER board"
 	depends on ARCH_OMAP3
+	default y
 	select OMAP_PACKAGE_CUS
-	select OMAP_MUX
 
 config MACH_OMAP_3630SDP
 	bool "OMAP3630 SDP board"
 	depends on ARCH_OMAP3
+	default y
 	select OMAP_PACKAGE_CBP
 
-config OMAP4_ES1
-	bool "OMAP 4430 ES1.0"
-	depends on ARCH_OMAP4
-	select PL310_ERRATA_588369
-	select ERRATA_OMAP4_AXI2OCP
-	help
-	Say Y if using OMAP4430 ES1.0 samples
+config MACH_TI8168EVM
+	bool "TI8168 Evaluation Module"
+	depends on SOC_OMAPTI816X
+	default y
 
 config MACH_OMAP_4430SDP
 	bool "OMAP 4430 SDP board"
+	default y
 	depends on ARCH_OMAP4
-	select HIGHMEM
-	select TWL6030_PWM
-	select TWL6030_GPADC
-	select TWL6040_VIB if ANDROID_TIMED_OUTPUT && TWL6040_CODEC
-	select NEW_LEDS
-	select LEDS_CLASS
-	select LEDS_PWM
-	select LEDS_GPIO
-	select LEDS_GPIO_PLATFORM
 	select LEDS_OMAP4430_SDP_DISPLAY
 	select LEDS_OMAP4430_SDP_KEYPAD
-	select LEDS_TRIGGERS
-	select LEDS_TRIGGER_TIMER
-	select INPUT_CMA3000_I2C
-#	select SENSORS_BH1780
+	select SENSORS_LM75
 	select INPUT_BH1780
-	select MISC_DEVICES
-#	select BMP085
 	select INPUT_BMP085
-	select STAGING
-	select IIO
-#	select SENSORS_HMC5843
 	select INPUT_HMC5843
 	select INPUT_SFH7741
-	select HWMON
-#	select SENSORS_LM75
 	select INPUT_MISC
-	select INPUT_KEYBOARD
-	select INPUT_TOUCHSCREEN
+	select HWMON
+	select INPUT_CMA3000
+	select INPUT_CMA3000_I2C
+	select OMAP_PACKAGE_CBL
+	select OMAP_PACKAGE_CBS
+	select REGULATOR_FIXED_VOLTAGE
+	select OMAP_TPS6236X
 	select TOUCHSCREEN_SYNTM12XX
-	select POWER_SUPPLY
+	select TWL6030_POWEROFF
+	select INPUT_TWL6030_PWRBUTTON
+	select TWL6040_VIB
 	select TWL6030_BCI_BATTERY
 	select CHARGER_BQ2415x
-	select SECURITY_MIDDLEWARE_COMPONENT
+	select TWL6030_GPADC
+	select OMAP_REBOOT_REASON
+	select OMAP_RAM_CONSOLE
+
+config MACH_OMAP_BLAZE
+	bool "OMAP 44xx Tablet2 Board"
+	default y
+	depends on ARCH_OMAP4
+	select OMAP_PACKAGE_CBL
+	select OMAP_PACKAGE_CBS
+	select TOUCHSCREEN_QUANTUM_OBP
+	select LEDS_OMAP4430_SDP_DISPLAY
+	select LEDS_OMAP4430_SDP_KEYPAD
+	select INPUT_TSL2771
+	select INPUT_BMP085
+	select INPUT_HMC5843
+	select INPUT_MPU3050
+	select INPUT_BMA180
+	select PANEL_TC358765
+	select KEYBOARD_GPIO
+	select TWL6040_VIB
+	select OMAP_REBOOT_REASON
+	select OMAP_RAM_CONSOLE
 
 config MACH_OMAP4_PANDA
-	bool "OMAP4 based Panda board"
+	bool "OMAP4 Panda Board"
+	default y
 	depends on ARCH_OMAP4
-
-config MACH_LGE_COSMOPOLITAN
-	bool "LGE Cosmopolitan board"
-	depends on ARCH_OMAP4
-	select HIGHMEM
-	select TWL6030_PWM
-	select TWL6030_GPADC
-#	select TWL6040_VIB if ANDROID_TIMED_OUTPUT && TWL6040_CODEC
-#	select NEW_LEDS
-#	select LEDS_CLASS
-#	select LEDS_PWM
-#	select LEDS_GPIO
-#	select LEDS_GPIO_PLATFORM
-#	select LEDS_OMAP4430_SDP_DISPLAY
-#	select LEDS_OMAP4430_SDP_KEYPAD
-#	select LEDS_TRIGGERS
-#	select LEDS_TRIGGER_TIMER
-	select MISC_DEVICES
-	select STAGING
-	select IIO
-	select HWMON
-	select INPUT_MISC
-	select INPUT_KEYBOARD
-	select INPUT_TOUCHSCREEN
-	select POWER_SUPPLY
-	select TWL6030_BCI_BATTERY
-	select SECURITY_MIDDLEWARE_COMPONENT
-
-choice
-	prompt "Choose the LGE COSMOPOLITAN Board Revision"
-	depends on MACH_LGE_COSMOPOLITAN
-	default MACH_LGE_COSMO_REV_A
-
-config MACH_LGE_COSMO_EVB_B
-	bool "Select LGE COSMOPOLITAN EVB_B H/W Revision"
-	depends on MACH_LGE_COSMOPOLITAN
-
-config MACH_LGE_COSMO_EVB_C
-	bool "Select LGE COSMOPOLITAN EVB_C H/W Revision"
-	depends on MACH_LGE_COSMOPOLITAN
-
-config MACH_LGE_COSMO_REV_A
-	bool "Select LGE COSMOPOLITAN REV_A H/W Revision"
-	depends on MACH_LGE_COSMOPOLITAN
-
-config MACH_LGE_COSMO_REV_B
-	bool "Select LGE COSMOPOLITAN REV_B H/W Revision"
-	depends on MACH_LGE_COSMOPOLITAN
-
-config MACH_LGE_COSMO_REV_C
-	bool "Select LGE COSMOPOLITAN REV_C H/W Revision"
-	depends on MACH_LGE_COSMOPOLITAN
- 
-config MACH_LGE_COSMO_REV_D
-    bool "Select LGE COSMOPOLITAN REV_D H/W Revision"
-	depends on MACH_LGE_COSMOPOLITAN
-
-config MACH_LGE_COSMO_REV_E
-    bool "Select LGE COSMOPOLITAN REV_E H/W Revision"
-	    depends on MACH_LGE_COSMOPOLITAN
-
-config MACH_LGE_COSMO_REV_10
-    bool "Select LGE COSMOPOLITAN REV_10 H/W Revision"
-	    depends on MACH_LGE_COSMOPOLITAN
-
-config MACH_LGE_COSMO_REV_11
-    bool "Select LGE COSMOPOLITAN REV_11 H/W Revision"
-	    depends on MACH_LGE_COSMOPOLITAN
-endchoice
-
-#LGE_CHANGE_DOMASTIC - start
-config MACH_LGE_COSMO_DOMASTIC
-	bool "Select LGE COSMOPOLITAN DOMASTIC H/W Revision"
-	depends on ARCH_OMAP4
-
-choice
-	prompt "Choose the LGE COSMOPOLITAN DOMASTIC Board Revision"
-	depends on MACH_LGE_COSMO_DOMASTIC
-	default MACH_LGE_COSMO_DOMASTIC_REV_A
-
-config MACH_LGE_COSMO_DOMASTIC_REV_A
-	bool "Select LGE COSMOPOLITAN DOMASTIC_REV_A H/W Revision"
-	depends on MACH_LGE_COSMO_DOMASTIC
-
-config MACH_LGE_COSMO_DOMASTIC_REV_B
-	bool "Select LGE COSMOPOLITAN DOMASTIC_REV_B H/W Revision"
-	depends on MACH_LGE_COSMO_DOMASTIC
-endchoice
-
-#LGE_CHANGE_DOMASTIC - end	
-
-#[kyungyoon.kim@lge.com]
-config MACH_LGE_CX2
-	bool "LGE CX2 board"
-	depends on ARCH_OMAP4
-
-choice
-	prompt "Choose the LGE CX2 Board Revision"
-	depends on MACH_LGE_CX2
-	default MACH_LGE_CX2_REV_A
-	
-config MACH_LGE_CX2_EVB
-	bool "Select LGE CX2 EVB_H/W Revision"
-	depends on MACH_LGE_CX2
-
-config MACH_LGE_CX2_REV_A
-	bool "Select LGE CX2 REV_A H/W Revision"
-	depends on MACH_LGE_CX2
-
-config MACH_LGE_CX2_REV_B
-	bool "Select LGE CX2 REV_B H/W Revision"
-	depends on MACH_LGE_CX2
-
-config MACH_LGE_CX2_REV_C
-	bool "Select LGE CX2 REV_C H/W Revision"
-	depends on MACH_LGE_CX2
- 
-config MACH_LGE_CX2_REV_D
-	bool "Select LGE CX2 REV_D H/W Revision"
-	depends on MACH_LGE_CX2
-
-config MACH_LGE_CX2_REV_E
-	bool "Select LGE CX2 REV_E H/W Revision"
-	depends on MACH_LGE_CX2
-
-config MACH_LGE_CX2_REV_10
-    bool "Select LGE CX2 REV_10 H/W Revision"
-	    depends on MACH_LGE_CX2
-
-config MACH_LGE_CX2_REV_11
-    bool "Select LGE CX2 REV_11 H/W Revision"
-	depends on MACH_LGE_CX2
-endchoice
-
-#[kyungyoon.kim] - end	
-
-config ERRATA_OMAP4_AXI2OCP
-	bool "OMAP 4430 axi2ocp errata workaround"
-	depends on ARCH_OMAP4
-	help
-	Pending response counter logic is incorrectly implemented
-	It decrements by only 1 even when there are 2+ responses in the
-	same cycle. If 2 MCMDs send out bridge at the same time counter
-	increments by.1 but when it decrement for 2 responses counter does
-	not go beyond 0.
-	Work-around:
-	Any new request before timer max out resets the timer. With this hang
-	issue will not happen.
+	select OMAP_PACKAGE_CBL
+	select OMAP_PACKAGE_CBS
+	select REGULATOR_FIXED_VOLTAGE
+	select OMAP_TPS6236X
+	select OMAP_REBOOT_REASON
+	select OMAP_RAM_CONSOLE
 
 config OMAP3_EMU
 	bool "OMAP3 debugging peripherals"
 	depends on ARCH_OMAP3
+	select ARM_AMBA
 	select OC_ETM
 	help
 	  Say Y here to enable debugging hardware of omap3
@@ -404,23 +421,8 @@ config OMAP3_SDRC_AC_TIMING
 	  wish to say no.  Selecting yes without understanding what is
 	  going on could result in system crashes;
 
-config INTERCONNECT_IO_POSTING
-	bool "Enable bus posting for PIO accesses"
-	depends on ARCH_OMAP34XX || ARCH_OMAP4
-	default n
-	---help---
-	This option sets PIO access for internal OMAP3 registers to follow the
-	ARMv7 DEVICE attribute. For 3430 this will allow posted writes in the
-	interconnect. Software will need to synchronize writes to ensure
-	completion. When not set the attribute is Strongly Ordered which is
-	non-posted on the OMAP3 interconnect.
-
-config ENABLE_L3_ERRORS
-	bool  "Enable L3 error logging"
-	depends on ARCH_OMAP4
-	default y
-	help
-	  Select this option to enable L3 error detection on OMAP4
+config OMAP_TPS6236X
+       bool
 
 config OMAP_ALLOW_OSWR
 	bool  "Enable Open Switch Retention"
@@ -431,19 +433,103 @@ config OMAP_ALLOW_OSWR
 	  Which means the Logic of power domains can be lost now
 	  unlike the CSWR wherein the logic is retained
 
-config OMAP4_PMD_CLKS_ENABLE
-	bool "Enable debug clocks (trace & STM)"
-	depends on ARCH_OMAP4
-	default n
-	help
-	  Select this option to enable l3_instr_ick, l3_main_3_ick and
-	  ocp_wp_noc_ick at boot-time, which are needed for debugging on OMAP4.
-	  Even without this option set it is possible to enable these clocks
-	  at run-time via debugfs.
+## LGE_SJIT_S 2011-08-25 [choongryeol.lee@lge.com] Port lghdk on K3.0
+source "arch/arm/mach-omap2/lge/Kconfig"
+## LGE_SJIT_E 2011-08-25 [choongryeol.lee@lge.com] Port lghdk on K3.0
 
-config OMAP4_KEEP_STATIC_DEPENDENCIES
-	bool "Keep OMAP4 Static dependencies"
+config OMAP_FIQ_DEBUGGER
+	bool "Enable the serial FIQ debugger on OMAP"
+	default y
+	select FIQ_DEBUGGER
+	help
+	  Enables the serial FIQ debugger on OMAP"
+
+config OMAP_REBOOT_REASON
+	depends on ARCH_OMAP4
+	bool
+
+config OMAP_RAM_CONSOLE
+        bool "Enable OMAP support for Android RAM console"
+        depends on ANDROID_RAM_CONSOLE
+        help
+          Select this option to enable Android RAM console support on OMAP.
+          This allows saving the kernel printk messages to a buffer in RAM, so
+          that after a kernel panic they can be viewed in the next kernel
+          invocation, by accessing /proc/last_kmsg
+          NOTE: Board file needs to invoke relevant api to enable the support
+
+
+config OMAP4_PPA_CPU1_ONLINE_BUG
+	bool "Enable Support for CPU1 ONLINE WA for OSWR/OFF"
+	depends on ARCH_OMAP4
+	depends on OMAP_ALLOW_OSWR
+	default y
+	help
+	  If an non GP OMAP4 device is used and PPA revision is < v1.7.3,
+	  the device does not perform the memory maintenance and TLB sync
+	  operations required before releasing CPU1 to HLOS. This results
+	  in crash while resuming from OFF mode.
+
+	  Disable this option *ONLY IF* you meet the minimum PPA version
+	  requirement.
+
+	  If, on the other hand, you do not understand the change, leave the
+	  default as enabled.
+
+
+config OMAP4_PPA_CPU1_ONLINE_BUG
+	bool "Enable Support for CPU1 ONLINE WA for OSWR/OFF"
+	depends on ARCH_OMAP4
+	depends on OMAP_ALLOW_OSWR
+	default y
+	help
+	  If an non GP OMAP4 device is used and PPA revision is < v1.7.3,
+	  the device does not perform the memory maintenance and TLB sync
+	  operations required before releasing CPU1 to HLOS. This results
+	  in crash while resuming from OFF mode.
+
+	  Disable this option *ONLY IF* you meet the minimum PPA version
+	  requirement.
+
+	  If, on the other hand, you do not understand the change, leave the
+	  default as enabled.
+
+config OMAP4_ARM_ERRATA_742230
+	bool "Enables the workaround for ARM errata 742230 on GP devices"
+	default y
+	help
+	  Enables the ARM errata 742230 on OMAP443x and OMAP446x (GP) devices.
+	  This involves setting bit 4 of the CP15 diagnostic control register.
+	  This is handled for HS devices in the PPA code and does not need to be
+	  enabled."
+
+config OMAP4_ARM_ERRATA_751472
+	bool "Enables the workaround for ARM errata 751472 on GP devices"
+	default y
+	help
+	  Enables the ARM errata 751472 on OMAP443x and OMAP446x (GP) devices.
+	  This involves setting bit 11 of the CP15 diagnostic control register.
+	  This is handled for HS devices in the PPA code and does not need to be
+	  enabled."
+
+config OMAP4_ARM_ERRATA_743622
+	bool "Enabled the workaround for ARM errata 743622 on GP devices"
+	default y
+	help
+	  Enables the workaround for ARM errata 743622 on OMAP4.
+	  This involves setting bit 6 of the CP15 diagnostic control register.
+	  This is handled for HS devices in the PPA code and does not need to be
+	  enabled."
+
+config OMAP4_HSOTG_ED_CORRECTION
+	bool "OMAP 44XX HSOTG Eye diagram correction"
 	depends on ARCH_OMAP4
 	default n
 	help
-	  Select this option to keep the static dependency mapping for OMAP4.
+	  Select this option to overrive HSOTG PHY settings in
+	  order to improve Eye Diagramm. On 4430 CPUs this should
+	  improve Eye Diagram at least 8%.
+
+endmenu
+
+endif

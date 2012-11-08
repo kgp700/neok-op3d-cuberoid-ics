@@ -16,8 +16,6 @@
 
 #include <linux/list.h>
 
-#include <sound/soc.h>
-
 struct snd_pcm_substream;
 
 /*
@@ -33,8 +31,6 @@ struct snd_pcm_substream;
 #define SND_SOC_DAIFMT_DSP_B		4 /* L data MSB during FRM LRC */
 #define SND_SOC_DAIFMT_AC97		5 /* AC97 */
 #define SND_SOC_DAIFMT_PDM		6 /* Pulse density modulation */
-
-#define SND_SOC_DAIFMT_PCM		7
 
 /* left and right justified also known as MSB and LSB respectively */
 #define SND_SOC_DAIFMT_MSB		SND_SOC_DAIFMT_LEFT_J
@@ -176,6 +172,8 @@ struct snd_soc_dai_ops {
 		struct snd_soc_dai *);
 	int (*trigger)(struct snd_pcm_substream *, int,
 		struct snd_soc_dai *);
+	int (*bespoke_trigger)(struct snd_pcm_substream *, int,
+		struct snd_soc_dai *);
 	/*
 	 * For hardware based FIFO caused delay reporting.
 	 * Optional.
@@ -207,12 +205,16 @@ struct snd_soc_dai_driver {
 	int (*resume)(struct snd_soc_dai *dai);
 
 	/* ops */
-	struct snd_soc_dai_ops *ops;
+	const struct snd_soc_dai_ops *ops;
 
 	/* DAI capabilities */
 	struct snd_soc_pcm_stream capture;
 	struct snd_soc_pcm_stream playback;
 	unsigned int symmetric_rates:1;
+
+	/* probe ordering - for components with runtime dependencies */
+	int probe_order;
+	int remove_order;
 };
 
 /*
@@ -375,6 +377,4 @@ static inline int snd_soc_dai_trigger(struct snd_pcm_substream *substream,
 		return dai->driver->ops->trigger(substream, cmd, dai);
 	return 0;
 }
-
-
 #endif

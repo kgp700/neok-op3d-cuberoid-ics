@@ -228,7 +228,7 @@ mpu_accel_build_data(struct mpuaccel_data *data, const unsigned char* buffer,int
         if (dev_id == ACCEL_ID_BMA150)
             *val = (*(s16 *)&buffer[0]) >> 6;
         else if (dev_id == ACCEL_ID_KXTF9)
-            *val = ((signed char)buffer[1]*256 + (unsigned char)buffer[0]) >> 4;
+            *val = (*(s16 *)&buffer[0]) >> 4;
         else
             *val = (buffer[1]<<8)|buffer[0];
     }

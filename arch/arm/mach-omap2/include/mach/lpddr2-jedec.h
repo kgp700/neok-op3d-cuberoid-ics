@@ -76,8 +76,6 @@
 #define SDRAM_TEMP_HIGH_DERATE_REFRESH_AND_TIMINGS	0x6
 #define SDRAM_TEMP_VERY_HIGH_SHUTDOWN			0x7
 
-
-
 struct lpddr2_addressing {
 	u8	num_banks;
 	u8	t_REFI_us_x10;
@@ -107,7 +105,6 @@ struct lpddr2_timings {
 	u8 tDQSCKMAXx2;
 	u8 tRASmax;
 	u8 tFAW;
-
 };
 
 /*
@@ -116,7 +113,7 @@ struct lpddr2_timings {
  * less than the corresponding min tCK value, we need to set the min
  * tCK value. This may happen at lower frequencies.
  */
-struct lpddr2_min_tck{
+struct lpddr2_min_tck {
 	u32 tRL;
 	u32 tRP_AB;
 	u32 tRCD;
@@ -131,18 +128,22 @@ struct lpddr2_min_tck{
 	u32 tFAW;
 };
 
-struct lpddr2_device_info{
+struct lpddr2_device_info {
 	const struct lpddr2_timings *device_timings[MAX_NUM_SPEEDBINS];
 	const struct lpddr2_min_tck *min_tck;
 	u8	type;
 	u8	density;
 	u8	io_width;
+
+	/* Idle time in cycles to wait before putting the memory in self refresh */
+	s32 emif_ddr_selfrefresh_cycles;
 };
 
-extern const struct lpddr2_addressing addressing_table[];
-extern const struct lpddr2_timings timings_jdec_400_mhz;
-extern const struct lpddr2_timings timings_jdec_333_mhz;
-extern const struct lpddr2_timings timings_jdec_200_mhz;
-extern const struct lpddr2_min_tck min_tck_jdec;
+/* The following are exported for devices which use JDEC specifications */
+extern const struct lpddr2_addressing lpddr2_jedec_addressing_table[];
+extern const struct lpddr2_timings lpddr2_jedec_timings_400_mhz;
+extern const struct lpddr2_timings lpddr2_jedec_timings_333_mhz;
+extern const struct lpddr2_timings lpddr2_jedec_timings_200_mhz;
+extern const struct lpddr2_min_tck lpddr2_jedec_min_tck;
 
 #endif

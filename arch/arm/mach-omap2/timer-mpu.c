@@ -19,35 +19,21 @@
 #include <linux/init.h>
 #include <linux/smp.h>
 #include <linux/clockchips.h>
-#include <linux/clk.h>
-
 #include <asm/irq.h>
 #include <asm/smp_twd.h>
 #include <asm/localtimer.h>
 
-#include "clock.h"
-
 /*
  * Setup the local clock events for a CPU.
  */
-void __cpuinit local_timer_setup(struct clock_event_device *evt)
+int __cpuinit local_timer_setup(struct clock_event_device *evt)
 {
-#ifdef CONFIG_CPU_FREQ
-	unsigned long timer_rate;
+	/* Local timers are not supprted on OMAP4430 ES1.0 */
+	if (omap_rev() == OMAP4430_REV_ES1_0)
+		return -ENXIO;
 
-	timer_rate = (mpu_timer_rate >> 1);
-
-	/*
-	 * Select the lowest timer target clock freq so that
-	 * with pre-scaler, constant timer freq can be maintained
-	 * for all OPPs
-	 * Timer target_freq = 50 MHz
-	 */
-	evt->irq = OMAP44XX_IRQ_LOCALTIMER;
-	twd_timer_setup_with_clock(evt, timer_rate, 50000000, 2);
-#else
 	evt->irq = OMAP44XX_IRQ_LOCALTIMER;
 	twd_timer_setup(evt);
-#endif
+	return 0;
 }
 

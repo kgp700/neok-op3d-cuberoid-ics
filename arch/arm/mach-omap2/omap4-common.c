@@ -14,200 +14,155 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/io.h>
+#include <linux/irq.h>
 #include <linux/platform_device.h>
-#include <linux/interrupt.h>
+#include <linux/dma-mapping.h>
 
 #include <asm/hardware/gic.h>
 #include <asm/hardware/cache-l2x0.h>
 #include <asm/cacheflush.h>
+#include <asm/smp_twd.h>
 
 #include <mach/hardware.h>
 #include <mach/omap4-common.h>
+#include <mach/omap-wakeupgen.h>
 
-#include <plat/control.h>
-#include <plat/clockdomain.h>
-#include <plat/clockdomain.h>
-
-
-#ifdef CONFIG_ENABLE_L3_ERRORS
-/*
- * L3 register offsets
- */
-#define L3_44XX_BASE_CLK1		0x44000000
-#define L3_44XX_BASE_CLK2		0x44800000
-#define L3_44XX_BASE_CLK3		0x45000000
-#define L3_44XX_BASE_FIREWALL		0x4A204000
-#define CUSTOM_ERROR			0x2
-#define STANDARD_ERROR			0x0
-#define INBAND_ERROR			0x0
-#define CLEAR_STDERR_LOG		80000000
-#define EMIF_KERRLOG_OFFSET		0x10
-#define L3_SLAVE_ADDRESS_OFFSET		0x14
-#define LOGICAL_ADDR_ERRORLOG		0x4
-
-u32 l3_flagmux_regerr[3] = {
-	0x50C,
-	0x100C,
-	0X020C
-};
-
-/*
- * L3 Target standard Error register offsets
- */
-u32 l3_targ_stderrlog_main_clk1[5] = {
-	0x148, /* DMM1 */
-	0x248, /* DMM2 */
-	0x348, /* ABE */
-	0x448, /* L4CFG */
-	0x648  /* CLK2 PWR DISC */
-};
-
-u32 l3_targ_stderrlog_main_clk2[18] = {
-	0x548,		/* COREX M3 */
-	0x348,		/* DSS */
-	0x148,		/* GPMC */
-	0x448,		/* ISS */
-	0x748,		/* IVAHD */
-	0xD48,		/* missing in TRM  corresponds to AES1*/
-	0x948,		/* L4 PER0*/
-	0x248,		/* OCMRAM */
-	0x148,		/* missing in TRM corresponds to GPMC sERROR*/
-	0x648,		/* SGX */
-	0x848,		/* SL2 */
-	0x1648,		/* C2C */
-	0x1148,		/* missing in TRM corresponds PWR DISC CLK1*/
-	0xF48,		/* missing in TRM corrsponds to SHA1*/
-	0xE48,		/* missing in TRM corresponds to AES2*/
-	0xC48,		/* L4 PER3 */
-	0xA48,		/* L4 PER1*/
-	0xB48		/* L4 PER2*/
-};
-
-/* Firewall Register Offsets  BASE ADDRES 0x4A204000 */
-u32 kerrlog_firewall[15] = {
-	0xE000,		/* L3RAM SOURCE = 1*/
-	0xC000,		/* GPMC SOURCE = 2*/
-	0x8000,		/* EMIF SOURCE = 3*/
-	0x1C000,	/* IVAHD SOURCE = 4*/
-	0x14000,	/* DUAL CORTEX M3 SOURCE = 5*/
-	0x1A000,	/* SL2 SOURCE = 6*/
-	0x0,		/* C2C Master SOURCE = 12*/
-	0x10000,	/* SGX SOURCE = 13*/
-	0x18000,	/* DSS SOURCE = 14*/
-	0x12000,	/* ISS SOURCE = 15*/
-	0x0,		/* L4 PER1. Missing in TRM  SOURCE = 16*/
-	0x0,		/* L4 CONFIG. Missing in TRM SOURCE = 17*/
-	0x0,		/* DEBUGSS. Missing in TRM SOURCE = 18*/
-	0x24000,	/* L4 ABE SOURCE = 19*/
-	0x2000		/* C2C SLAVE SOURCE = 20*/
-};
-
-/* Firewall Register source names */
-char *kerrlog_firewall_sourcename[15] = {
-	"L3RAM",
-	"GPMC",
-	"EMIF",
-	"IVAHD",
-	"DUAL CORTEX M3",
-	"SL2",
-	"C2C Master",
-	"SGX",
-	"DSS",
-	"ISS",
-	"L4 PER1",
-	"L4 CONFIG",
-	"DEBUGSS",
-	"L4 ABE",
-	"C2C SLAVE"
-};
-
-
-u32 l3_targ_stderrlog_main_clk3[1] = {
-	0x0148	/* EMUSS */
-};
-
-
-char *l3_targ_stderrlog_main_clk1_name[5] = {
-    "DMM1",
-    "DMM2",
-    "ABE",
-    "L4CFG",
-    "CLK2 PWR DISC"
-};
-
-char *l3_targ_stderrlog_main_clk2_name[18] = {
-    "COREX M3" ,
-    "DSS ",
-    "GPMC ",
-    "ISS ",
-    "IVAHD ",
-    "AES1",
-    "L4 PER0",
-    "OCMRAM ",
-    "GPMC sERROR",
-    "SGX ",
-    "SL2 ",
-    "C2C ",
-    "PWR DISC CLK1",
-    "SHA1",
-    "AES2",
-    "L4 PER3",
-    "L4 PER1",
-    "L4 PER2"
-};
-
-char *l3_targ_stderrlog_main_clk3_name[1] = {
-    "EMUSS"
-};
-
-u32 *l3_targ_stderrlog_main[3] = {
-	l3_targ_stderrlog_main_clk1,
-	l3_targ_stderrlog_main_clk2,
-	l3_targ_stderrlog_main_clk3,
-};
-
-u32 *l3_targ_stderrlog_main_sourcename[3] = {
-	(u32 *)l3_targ_stderrlog_main_clk1_name,
-	(u32 *)l3_targ_stderrlog_main_clk2_name,
-	(u32 *)l3_targ_stderrlog_main_clk3_name
-};
-
-u32 ctrl_sec_err_stat[2] = {
-	0x2D0,
-	0x2D4
-};
-
-void __iomem *l3_base[4];
-void __iomem *ctrl_base;
-#endif
+#include "omap4-sar-layout.h"
+#include "clockdomain.h"
 
 #ifdef CONFIG_CACHE_L2X0
-void __iomem *l2cache_base;
+#define L2X0_POR_OFFSET_VALUE	0x5
+#define L2X0_POR_OFFSET_MASK	0x1f
+static void __iomem *l2cache_base;
 #endif
 
-void __iomem *gic_cpu_base_addr;
-void __iomem *gic_dist_base_addr;
+static void __iomem *gic_dist_base_addr;
+static void __iomem *gic_cpu_base;
+static void *dram_barrier_base;
 
-#ifndef CONFIG_TF_MSHIELD
+#ifndef CONFIG_SECURITY_MIDDLEWARE_COMPONENT
 static struct clockdomain *l4_secure_clkdm;
 #endif
 
+static void omap_bus_sync_noop(void)
+{ }
+
+struct omap_bus_post_fns omap_bus_post = {
+	.sync = omap_bus_sync_noop,
+};
+EXPORT_SYMBOL(omap_bus_post);
+
+void __iomem *omap4_get_gic_dist_base(void)
+{
+	return gic_dist_base_addr;
+}
+
+void __iomem *omap4_get_gic_cpu_base(void)
+{
+	return gic_cpu_base;
+}
+
+void *omap_get_dram_barrier_base(void)
+{
+	return dram_barrier_base;
+}
+
 void __init gic_init_irq(void)
 {
-	/* Static mapping, never released */
-	gic_dist_base_addr = ioremap(OMAP44XX_GIC_DIST_BASE, SZ_4K);
-	BUG_ON(!gic_dist_base_addr);
-	gic_dist_init(0, gic_dist_base_addr, 29);
 
 	/* Static mapping, never released */
-	gic_cpu_base_addr = ioremap(OMAP44XX_GIC_CPU_BASE, SZ_512);
-	BUG_ON(!gic_cpu_base_addr);
-	gic_cpu_init(0, gic_cpu_base_addr);
+	gic_dist_base_addr = ioremap(OMAP44XX_GIC_DIST_BASE, SZ_4K);
+	if (WARN_ON(!gic_dist_base_addr))
+		return;
+
+	/* Static mapping, never released */
+	gic_cpu_base = ioremap(OMAP44XX_GIC_CPU_BASE, SZ_512);
+	if (WARN_ON(!gic_cpu_base))
+		return;
+
+	omap_wakeupgen_init();
+
+	gic_init(0, 29, gic_dist_base_addr, gic_cpu_base);
+}
+
+/*
+ * FIXME: Remove this GIC APIs once common GIG library starts
+ * supporting it.
+ */
+void gic_cpu_enable(void)
+{
+	__raw_writel(0xf0, gic_cpu_base + GIC_CPU_PRIMASK);
+	__raw_writel(1, gic_cpu_base + GIC_CPU_CTRL);
+}
+
+void gic_cpu_disable(void)
+{
+	__raw_writel(0, gic_cpu_base + GIC_CPU_CTRL);
+}
+
+
+bool gic_dist_disabled(void)
+{
+	return !(__raw_readl(gic_dist_base_addr + GIC_DIST_CTRL) & 0x1);
+}
+
+void gic_dist_enable(void)
+{
+	if (cpu_is_omap443x() || gic_dist_disabled())
+		__raw_writel(0x1, gic_dist_base_addr + GIC_DIST_CTRL);
+}
+void gic_dist_disable(void)
+{
+	__raw_writel(0, gic_dist_base_addr + GIC_CPU_CTRL);
+}
+
+void gic_timer_retrigger(void)
+{
+	u32 twd_int = __raw_readl(twd_base + TWD_TIMER_INTSTAT);
+	u32 gic_int = __raw_readl(gic_dist_base_addr + GIC_DIST_PENDING_SET);
+	u32 twd_ctrl = __raw_readl(twd_base + TWD_TIMER_CONTROL);
+
+	if (twd_int && !(gic_int & BIT(OMAP44XX_IRQ_LOCALTIMER))) {
+		/*
+		 * The local timer interrupt got lost while the distributor was
+		 * disabled.  Ack the pending interrupt, and retrigger it.
+		 */
+		pr_warn("%s: lost localtimer interrupt\n", __func__);
+		__raw_writel(1, twd_base + TWD_TIMER_INTSTAT);
+		if (!(twd_ctrl & TWD_TIMER_CONTROL_PERIODIC)) {
+			__raw_writel(1, twd_base + TWD_TIMER_COUNTER);
+			twd_ctrl |= TWD_TIMER_CONTROL_ENABLE;
+			__raw_writel(twd_ctrl, twd_base + TWD_TIMER_CONTROL);
+		}
+	}
 }
 
 #ifdef CONFIG_CACHE_L2X0
+
+void __iomem *omap4_get_l2cache_base(void)
+{
+	return l2cache_base;
+}
+
+static void omap4_l2x0_disable(void)
+{
+	/* Disable PL310 L2 Cache controller */
+	omap_smc1(0x102, 0x0);
+}
+
+static void omap4_l2x0_set_debug(unsigned long val)
+{
+	/* Program PL310 L2 Cache controller debug register */
+	omap_smc1(0x100, val);
+}
+
 static int __init omap_l2_cache_init(void)
 {
+	u32 aux_ctrl = 0;
+	u32 por_ctrl = 0;
+	u32 lockdown = 0;
+	bool mpu_prefetch_disable_errata = false;
+
 	/*
 	 * To avoid code running on other OMAPs in
 	 * multi-omap builds
@@ -215,39 +170,115 @@ static int __init omap_l2_cache_init(void)
 	if (!cpu_is_omap44xx())
 		return -ENODEV;
 
+#ifdef CONFIG_OMAP_ALLOW_OSWR
+	if (omap_rev() == OMAP4460_REV_ES1_0)
+		mpu_prefetch_disable_errata = true;
+#endif
+
 	/* Static mapping, never released */
 	l2cache_base = ioremap(OMAP44XX_L2CACHE_BASE, SZ_4K);
-	BUG_ON(!l2cache_base);
+	if (WARN_ON(!l2cache_base))
+		return -ENODEV;
 
-	if (omap_rev() != OMAP4430_REV_ES1_0) {
-		/* Set POR through PPA service only in EMU/HS devices */
-		if (omap_type() != OMAP2_DEVICE_TYPE_GP)
-			omap4_secure_dispatcher(
-				PPA_SERVICE_PL310_POR, 0x7, 1,
-				PL310_POR, 0, 0, 0);
+	/*
+	 * 16-way associativity, parity disabled
+	 * Way size - 32KB (es1.0)
+	 * Way size - 64KB (es2.0 +)
+	 */
+	aux_ctrl = readl_relaxed(l2cache_base + L2X0_AUX_CTRL);
 
-		omap_smc1(0x109, OMAP4_L2X0_AUXCTL_VALUE);
+	if (omap_rev() == OMAP4430_REV_ES1_0) {
+		aux_ctrl |= 0x2 << L2X0_AUX_CTRL_WAY_SIZE_SHIFT;
+		goto skip_aux_por_api;
 	}
 
+	/*
+	 * Drop instruction prefetch hint since it degrades the
+	 * the performance.
+	 */
+	aux_ctrl |= ((0x3 << L2X0_AUX_CTRL_WAY_SIZE_SHIFT) |
+		(1 << L2X0_AUX_CTRL_SHARE_OVERRIDE_SHIFT) |
+		(1 << L2X0_AUX_CTRL_EARLY_BRESP_SHIFT));
+
+	if (!mpu_prefetch_disable_errata)
+		aux_ctrl |= (1 << L2X0_AUX_CTRL_DATA_PREFETCH_SHIFT);
+
+	omap_smc1(0x109, aux_ctrl);
+
+	/* Setup POR Control register */
+	por_ctrl = readl_relaxed(l2cache_base + L2X0_PREFETCH_CTRL);
+
+	/*
+	 * Double linefill is available only on OMAP4460 L2X0.
+	 * It may cause single cache line memory corruption, leave it disabled
+	 * on all devices
+	 */
+	por_ctrl &= ~(1 << L2X0_PREFETCH_DOUBLE_LINEFILL_SHIFT);
+	if (!mpu_prefetch_disable_errata) {
+		por_ctrl &= ~L2X0_POR_OFFSET_MASK;
+		por_ctrl |= L2X0_POR_OFFSET_VALUE;
+	}
+
+	/* Set POR through PPA service only in EMU/HS devices */
+	if (omap_type() != OMAP2_DEVICE_TYPE_GP)
+		omap4_secure_dispatcher(PPA_SERVICE_PL310_POR, 0x7, 1,
+				por_ctrl, 0, 0, 0);
+	else if (omap_rev() >= OMAP4430_REV_ES2_2)
+		omap_smc1(0x113, por_ctrl);
+
+
+	/*
+	 * FIXME: Temporary WA for OMAP4460 stability issue.
+	 * Lock-down specific L2 cache ways which  makes effective
+	 * L2 size as 512 KB instead of 1 MB
+	 */
+	if (omap_rev() == OMAP4460_REV_ES1_0) {
+		lockdown = 0xa5a5;
+		writel_relaxed(lockdown, l2cache_base + L2X0_LOCKDOWN_WAY_D0);
+		writel_relaxed(lockdown, l2cache_base + L2X0_LOCKDOWN_WAY_D1);
+		writel_relaxed(lockdown, l2cache_base + L2X0_LOCKDOWN_WAY_I0);
+		writel_relaxed(lockdown, l2cache_base + L2X0_LOCKDOWN_WAY_I1);
+	}
+
+skip_aux_por_api:
 	/* Enable PL310 L2 Cache controller */
 	omap_smc1(0x102, 0x1);
 
+	l2x0_init(l2cache_base, aux_ctrl, L2X0_AUX_CTRL_MASK);
+
 	/*
-	 * 32KB way size, 16-way associativity,
-	 * parity disabled
-	 */
-	if (omap_rev() == OMAP4430_REV_ES1_0)
-		l2x0_init(l2cache_base, 0x0e050000, 0xc0000fff);
-	else
-		l2x0_init(l2cache_base, OMAP4_L2X0_AUXCTL_VALUE, 0xd0000fff);
+	 * Override default outer_cache.disable with a OMAP4
+	 * specific one
+	*/
+	outer_cache.disable = omap4_l2x0_disable;
+	outer_cache.set_debug = omap4_l2x0_set_debug;
 
 	return 0;
 }
 early_initcall(omap_l2_cache_init);
 #endif
 
+static int __init omap_barriers_init(void)
+{
+	dma_addr_t dram_phys;
 
-#ifndef CONFIG_TF_MSHIELD
+	if (!cpu_is_omap44xx())
+		return -ENODEV;
+
+	dram_barrier_base = dma_alloc_stronglyordered(NULL, SZ_4K,
+				(dma_addr_t *)&dram_phys, GFP_KERNEL);
+	if (!dram_barrier_base) {
+		pr_err("%s: failed to allocate memory.\n", __func__);
+		return -ENOMEM;
+	}
+
+	omap_bus_post.sync = omap_bus_sync;
+
+	return 0;
+}
+core_initcall(omap_barriers_init);
+
+#ifndef CONFIG_SECURITY_MIDDLEWARE_COMPONENT
 /*
  * omap4_sec_dispatcher: Routine to dispatch low power secure
  * service routines
@@ -275,8 +306,11 @@ u32 omap4_secure_dispatcher(u32 idx, u32 flag, u32 nargs, u32 arg1, u32 arg2,
 	if (!l4_secure_clkdm)
 		l4_secure_clkdm = clkdm_lookup("l4_secure_clkdm");
 
-	/* Put l4 secure to SW_WKUP so that moduels are accessible */
-	omap2_clkdm_wakeup(l4_secure_clkdm);
+	/*
+	 * Put l4 secure to software wakeup  so that secure
+	 * modules are accessible
+	 */
+	clkdm_wakeup(l4_secure_clkdm);
 
 	/*
 	 * Secure API needs physical address
@@ -287,202 +321,12 @@ u32 omap4_secure_dispatcher(u32 idx, u32 flag, u32 nargs, u32 arg1, u32 arg2,
 
 	ret = omap_smc2(idx, flag, __pa(param));
 
-	/* Restore the HW_SUP so that module can idle */
-	omap2_clkdm_allow_idle(l4_secure_clkdm);
+	/*
+	 * Restore l4 secure to hardware superwised to allow
+	 * secure modules idle
+	 */
+	clkdm_allow_idle(l4_secure_clkdm);
 
 	return ret;
 }
-#endif
-
-#ifdef CONFIG_ENABLE_L3_ERRORS
-static void omap_fw_error_handler(u32 ctrl_sec_err_status,
-					u32 ctrl_sec_err_status_regval)
-{
-	u32 err_source_firewall = 0;
-	u32 kerror_log_fw = 0;
-	u32 kerror_log_val = 0;
-	u32 j = 0;
-	u32 k = 0;
-
-	/* Identify the source */
-	for (j = 0; !err_source_firewall; j++)
-		err_source_firewall = ctrl_sec_err_status_regval & (1<<j);
-	/*
-	 * -1 Since array offset is from Zero.One more -1 since CONTROL SEC
-	 * register starts from 1 and not 0.
-	 */
-	err_source_firewall = j-1-1;
-
-	/*
-	 * Get the details from KerrorLog registers and print the firewall
-	 * error details
-	 */
-	if (err_source_firewall == 0x3) {
-		/* only for EMIF there are three kerrlog registers*/
-		for (k = 0; k < 3; k++) {
-			kerror_log_fw = (u32)l3_base[3] +
-				kerrlog_firewall[err_source_firewall] +
-				(EMIF_KERRLOG_OFFSET * k);
-			kerror_log_val = readl(kerror_log_fw);
-			/*
-			 * Print the error log and clear it . The Command is
-			 * yet to be updated after checking with HARDWARE TEAM
-			 */
-			pr_crit("FireWall Error : SOURCE:%s at ADDRESS 0x%x\n",
-			kerrlog_firewall_sourcename[err_source_firewall],
-			readl((kerror_log_fw+LOGICAL_ADDR_ERRORLOG)));
-			writel(kerror_log_val, kerror_log_fw);
-			dump_stack();
-		}
-	} else {
-		kerror_log_fw = (u32)l3_base[3] +
-			kerrlog_firewall[err_source_firewall];
-		kerror_log_val = readl(kerror_log_fw);
-		/* Print the error log and clear it.*/
-		pr_crit("FireWall Error: SOURCE :%s at ADDRESS 0x%x\n",	\
-		kerrlog_firewall_sourcename[err_source_firewall],	\
-		readl((kerror_log_fw+LOGICAL_ADDR_ERRORLOG)));		\
-		writel(kerror_log_val, kerror_log_fw);
-		dump_stack();
-	}
-
-	/* Clear control status bits . This has to be tested*/
-	writel(ctrl_sec_err_status_regval, ctrl_sec_err_status);
-	return;
-}
-
-/*
- * Interrupt Handler for L3 error detection
- *	1) Identify the clock domain to which the error belongs to
- *	2) Identify the slave where the error information is logged
- *	3) Print the logged information
- */
-static irqreturn_t l3_interrupt_handler(int irq, void *dev_id)
-{
-	int inttype, i, j;
-	int err_source = 0;
-	u32 stderrlog_main, stderrlog_main_reg_val, error_source_reg;
-	u32 ctrl_sec_err_status, ctrl_sec_err_status_regval, slave_addr;
-	char *source_name;
-
-	/*
-	 * Get the Type of interrupt
-	 * 0- Application
-	 * 1 - Debug
-	 */
-	if (irq == OMAP44XX_IRQ_L3_APP)
-		inttype = 0;
-	else
-		inttype = 1;
-
-	for (i = 0; i < 3; i++) {
-		/*
-		 * Read the regerr register of the clock domain
-		 * to determine the source
-		 */
-		error_source_reg =  readl((l3_base[i] + l3_flagmux_regerr[i]
-							+ (inttype << 3)));
-		/* Get the corresponding error and analyse */
-		if (error_source_reg) {
-			/* Identify the source from control status register */
-			for (j = 0; !err_source; j++)
-				err_source = error_source_reg & (1<<j);
-			/* Since array offset is from Zero */
-			err_source = j-1;
-			/* Read the stderrlog_main_source from clk domain */
-			stderrlog_main = (u32)l3_base[i] +
-				(*(l3_targ_stderrlog_main[i] + err_source));
-			stderrlog_main_reg_val =  readl(stderrlog_main);
-
-			switch ((stderrlog_main_reg_val & CUSTOM_ERROR)) {
-			case STANDARD_ERROR:
-				/* check if this is a firewall violation */
-				ctrl_sec_err_status = (u32)ctrl_base +
-						ctrl_sec_err_stat[inttype];
-				ctrl_sec_err_status_regval =
-						readl(ctrl_sec_err_status);
-				source_name =
-				(char *)(*(l3_targ_stderrlog_main_sourcename[i]
-					+ err_source));
-				slave_addr = stderrlog_main +
-
-						L3_SLAVE_ADDRESS_OFFSET;
-				if (!ctrl_sec_err_status_regval) {
-					/*
-					 * get the details about the inband
-					 * error as command etc and print
-					 * details
-					 */
-					pr_crit("L3 standard error: SOURCE:%s"
-						"at address 0x%x\n",
-						source_name, readl(slave_addr));
-					dump_stack();
-				} else {
-					/* Then this is a Fire Wall Error */
-					if (omap_type() == OMAP2_DEVICE_TYPE_GP)
-						omap_fw_error_handler(
-								ctrl_sec_err_status,
-								ctrl_sec_err_status_regval);
-				}
-				/* clear the stderr log */
-				writel((stderrlog_main_reg_val |
-					CLEAR_STDERR_LOG), stderrlog_main);
-				break;
-			case CUSTOM_ERROR:
-				pr_crit("CUSTOM SRESP warning with SOURCE:%s\n",
-				(char *)(*(l3_targ_stderrlog_main_sourcename[i]
-						+ err_source)));
-				/* clear the std error log*/
-				writel((stderrlog_main_reg_val |
-					CLEAR_STDERR_LOG), stderrlog_main);
-				//dump_stack();
-				break;
-			default:
-				/* Nothing to be handled here as of now */
-				break;
-			}
-		/* Error found so break the for loop */
-		break;
-		}
-	}
-	return IRQ_HANDLED;
-}
-
-static int __init omap_l3_init(void)
-{
-	int ret;
-
-	/* Static mapping. Never released map it for 1M*/
-	l3_base[0] = ioremap(L3_44XX_BASE_CLK1, SZ_1M);
-	l3_base[1] = ioremap(L3_44XX_BASE_CLK2, SZ_1M);
-	l3_base[2] = ioremap(L3_44XX_BASE_CLK3, SZ_1M);
-	l3_base[3] = ioremap(L3_44XX_BASE_FIREWALL, SZ_1M);
-	if ((!l3_base[0]) || (!l3_base[1]) || (!l3_base[2]) || (!l3_base[3])) {
-		pr_crit("Could not ioremap L3 address space\n");
-		return -ENOMEM;
-	}
-	ctrl_base = omap_ctrl_base_get();
-
-	/*
-	 * Setup interrupt Handlers
-	 */
-	ret = request_irq(OMAP44XX_IRQ_L3_DBG,
-			(irq_handler_t)l3_interrupt_handler,
-			IRQF_DISABLED, "l3_debug_error", NULL);
-	if (ret) {
-		pr_crit("L3: request_irq failed to register for 0x%x\n",
-					 OMAP44XX_IRQ_L3_DBG);
-		return ret;
-	}
-	ret = request_irq(OMAP44XX_IRQ_L3_APP,
-			(irq_handler_t)l3_interrupt_handler,
-			IRQF_DISABLED, "l3_app_error", NULL);
-	if (ret) {
-		pr_crit("L3: request_irq failed to register for 0x%x\n",
-					 OMAP44XX_IRQ_L3_APP);
-		return ret;
-	}
-	return 0;
-}
-early_initcall(omap_l3_init);
 #endif

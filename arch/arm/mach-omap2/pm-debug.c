@@ -29,14 +29,22 @@
 
 #include <plat/clock.h>
 #include <plat/board.h>
-#include <plat/powerdomain.h>
-#include <plat/clockdomain.h>
-#include <plat/voltage.h>
+#include "powerdomain.h"
+#include "clockdomain.h"
 #include <plat/dmtimer.h>
+#include <plat/omap-pm.h>
 
-#include "prm.h"
-#include "cm.h"
+#include "cm2xxx_3xxx.h"
+#include "prm2xxx_3xxx.h"
 #include "pm.h"
+
+#define PM_DEBUG_MAX_SAVED_REGS	64
+#define PM_DEBUG_PRM_MIN	0x4A306000
+#define PM_DEBUG_PRM_MAX	(0x4A307F00 + (PM_DEBUG_MAX_SAVED_REGS * 4) - 1)
+#define PM_DEBUG_CM1_MIN	0x4A004000
+#define PM_DEBUG_CM1_MAX	(0x4A004F00 + (PM_DEBUG_MAX_SAVED_REGS * 4) - 1)
+#define PM_DEBUG_CM2_MIN	0x4A008000
+#define PM_DEBUG_CM2_MAX	(0x4A009F00 + (PM_DEBUG_MAX_SAVED_REGS * 4) - 1)
 
 int omap2_pm_debug;
 u32 enable_off_mode;
@@ -45,12 +53,19 @@ u32 wakeup_timer_seconds;
 u32 wakeup_timer_milliseconds;
 u32 omap4_device_off_counter = 0;
 
+#ifdef CONFIG_PM_ADVANCED_DEBUG
+static u32 saved_reg_num;
+static u32 saved_reg_num_used;
+static u32 saved_reg_addr;
+static u32 saved_reg_buff[2][PM_DEBUG_MAX_SAVED_REGS];
+#endif
+
 #define DUMP_PRM_MOD_REG(mod, reg)    \
 	regs[reg_count].name = #mod "." #reg; \
-	regs[reg_count++].val = prm_read_mod_reg(mod, reg)
+	regs[reg_count++].val = omap2_prm_read_mod_reg(mod, reg)
 #define DUMP_CM_MOD_REG(mod, reg)     \
 	regs[reg_count].name = #mod "." #reg; \
-	regs[reg_count++].val = cm_read_mod_reg(mod, reg)
+	regs[reg_count++].val = omap2_cm_read_mod_reg(mod, reg)
 #define DUMP_PRM_REG(reg) \
 	regs[reg_count].name = #reg; \
 	regs[reg_count++].val = __raw_readl(reg)
@@ -163,6 +178,23 @@ void omap2_pm_dump(int mode, int resume, unsigned int us)
 		printk(KERN_INFO "%-20s: 0x%08x\n", regs[i].name, regs[i].val);
 }
 
+void omap2_pm_wakeup_on_timer(u32 seconds, u32 milliseconds)
+{
+	u32 tick_rate, cycles;
+
+	if (!seconds && !milliseconds)
+		return;
+
+	tick_rate = clk_get_rate(omap_dm_timer_get_fclk(gptimer_wakeup));
+	cycles = tick_rate * seconds + tick_rate * milliseconds / 1000;
+	omap_dm_timer_stop(gptimer_wakeup);
+	omap_dm_timer_set_load_start(gptimer_wakeup, 0, 0xffffffff - cycles);
+
+	pr_info("PM: Resume timer in %u.%03u secs"
+		" (%d ticks at %d ticks/sec.)\n",
+		seconds, milliseconds, cycles, tick_rate);
+}
+
 #ifdef CONFIG_DEBUG_FS
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
@@ -170,18 +202,20 @@ void omap2_pm_dump(int mode, int resume, unsigned int us)
 static void pm_dbg_regset_store(u32 *ptr);
 
 static struct dentry *pm_dbg_dir;
-struct dentry  *pm_dbg_main_dir;
+
 static int pm_dbg_init_done;
 
-static int __init pm_dbg_init(void);
+static int pm_dbg_init(void);
 
 enum {
 	DEBUG_FILE_COUNTERS = 0,
 	DEBUG_FILE_TIMERS,
+	DEBUG_FILE_LAST_COUNTERS,
+	DEBUG_FILE_LAST_TIMERS,
 };
 
 struct pm_module_def {
-	char name[16]; /* Name of the module */
+	char name[8]; /* Name of the module */
 	short type; /* CM or PRM */
 	unsigned short offset;
 	int low; /* First register address on this module */
@@ -224,55 +258,6 @@ static const struct pm_module_def omap3_pm_reg_modules[] = {
 	{ "", 0, 0, 0, 0 },
 };
 
-static const struct pm_module_def omap4_pm_reg_modules[] = {
-	{ "OCP_CM1", MOD_CM, OMAP4430_CM1_OCP_SOCKET_MOD, 0x0, 0x40 },
-	{ "CKGEN_CM1", MOD_CM, OMAP4430_CM1_CKGEN_MOD, 0x0, 0x180 },
-	{ "MPU", MOD_CM, OMAP4430_CM1_MPU_MOD, 0x0, 0x20 },
-	{ "TESLA", MOD_CM, OMAP4430_CM1_TESLA_MOD, 0x0, 0x20 },
-	{ "ABE", MOD_CM, OMAP4430_CM1_ABE_MOD, 0x0, 0x88 },
-	{ "RESTORE", MOD_CM, OMAP4430_CM1_RESTORE_MOD, 0x0, 0x40 },
-
-	{ "OCP_CM2", MOD_CM, OMAP4430_CM2_OCP_SOCKET_MOD, 0x0, 0x40 },
-	{ "CKGEN_CM2", MOD_CM, OMAP4430_CM2_CKGEN_MOD, 0x0, 0xec },
-	{ "ALWAYS_ON", MOD_CM, OMAP4430_CM2_ALWAYS_ON_MOD, 0x0, 0x40 },
-	{ "CORE", MOD_CM, OMAP4430_CM2_CORE_MOD, 0x0, 0x740 },
-	{ "IVAHD", MOD_CM, OMAP4430_CM2_IVAHD_MOD, 0x0, 0x28 },
-	{ "CAM", MOD_CM, OMAP4430_CM2_CAM_MOD, 0x0, 0x28 },
-	{ "DSS", MOD_CM, OMAP4430_CM2_DSS_MOD, 0x0, 0x28 },
-	{ "GFX", MOD_CM, OMAP4430_CM2_GFX_MOD, 0x0, 0x20 },
-	{ "L3INIT", MOD_CM, OMAP4430_CM2_L3INIT_MOD, 0x0, 0xe0 },
-	{ "L4PER", MOD_CM, OMAP4430_CM2_L4PER_MOD, 0x0, 0x1d8 },
-	{ "CEFUSE", MOD_CM, OMAP4430_CM2_CEFUSE_MOD, 0x0, 0x20 },
-	{ "RESTORE", MOD_CM, OMAP4430_CM2_RESTORE_MOD, 0x0, 0x5c },
-
-	{ "EMU_CM", MOD_CM, OMAP4430_PRM_EMU_CM_MOD, 0x0, 0x20 },
-	{ "WKUP_CM", MOD_CM, OMAP4430_PRM_WKUP_CM_MOD, 0x0, 0x88 },
-
-	{ "OCP", MOD_PRM, OMAP4430_PRM_OCP_SOCKET_MOD, 0x0, 0x40 },
-	{ "CKGEN", MOD_PRM, OMAP4430_PRM_CKGEN_MOD, 0x0, 0x10 },
-	{ "MPU", MOD_PRM, OMAP4430_PRM_MPU_MOD, 0x0, 0x24 },
-	{ "TESLA", MOD_PRM, OMAP4430_PRM_TESLA_MOD, 0x0, 0x24 },
-	{ "ABE", MOD_PRM, OMAP4430_PRM_ABE_MOD, 0x0, 0x8c },
-	{ "ALWAYS_ON", MOD_PRM, OMAP4430_PRM_ALWAYS_ON_MOD, 0x24, 0x3c },
-	{ "CORE", MOD_PRM, OMAP4430_PRM_CORE_MOD, 0x0, 0x744 },
-	{ "IVAHD", MOD_PRM, OMAP4430_PRM_IVAHD_MOD, 0x0, 0x2c },
-	{ "CAM", MOD_PRM, OMAP4430_PRM_CAM_MOD, 0x0, 0x2c },
-	{ "DSS", MOD_PRM, OMAP4430_PRM_DSS_MOD, 0x0, 0x2c },
-	{ "GFX", MOD_PRM, OMAP4430_PRM_GFX_MOD, 0x0, 0x24 },
-	{ "L3INIT", MOD_PRM, OMAP4430_PRM_L3INIT_MOD, 0x0, 0xe4 },
-	{ "L4PER", MOD_PRM, OMAP4430_PRM_L4PER_MOD, 0x0, 0x1dc },
-	{ "CEFUSE", MOD_PRM, OMAP4430_PRM_CEFUSE_MOD, 0x0, 0x24 },
-	{ "WKUP", MOD_PRM, OMAP4430_PRM_WKUP_MOD, 0x24, 0x84 },
-	{ "EMU", MOD_PRM, OMAP4430_PRM_EMU_MOD, 0x0, 0x24 },
-	{ "DEVICE", MOD_PRM, OMAP4430_PRM_DEVICE_MOD, 0x0, 0xf8 },
-
-	{ "MPU_OCP", MOD_PRM, OMAP4430_PRCM_MPU_OCP_SOCKET_PRCM_MOD, 0x0, 0x0 },
-	{ "MPU_DEVICE", MOD_PRM, OMAP4430_PRCM_MPU_DEVICE_PRM_MOD, 0x0, 0x4 },
-	{ "MPU_CPU0", MOD_PRM, OMAP4430_PRCM_MPU_CPU0_MOD, 0x0, 0x18 },
-	{ "MPU_CPU1", MOD_PRM, OMAP4430_PRCM_MPU_CPU1_MOD, 0x0, 0x18 },
-	{ "", 0, 0, 0, 0 },
-};
-
 #define PM_DBG_MAX_REG_SETS 4
 
 static void *pm_dbg_reg_set[PM_DBG_MAX_REG_SETS];
@@ -305,10 +290,6 @@ static int pm_dbg_show_regs(struct seq_file *s, void *unused)
 
 	if (reg_set == 0) {
 		store = kmalloc(pm_dbg_get_regset_size(), GFP_KERNEL);
-		if (!store) {
-			WARN_ON(1);
-			return -ENOMEM;
-		}
 		ptr = store;
 		pm_dbg_regset_store(ptr);
 	} else {
@@ -366,10 +347,10 @@ static void pm_dbg_regset_store(u32 *ptr)
 		for (j = pm_dbg_reg_modules[i].low;
 			j <= pm_dbg_reg_modules[i].high; j += 4) {
 			if (pm_dbg_reg_modules[i].type == MOD_CM)
-				val = cm_read_mod_reg(
+				val = omap2_cm_read_mod_reg(
 					pm_dbg_reg_modules[i].offset, j);
 			else
-				val = prm_read_mod_reg(
+				val = omap2_prm_read_mod_reg(
 					pm_dbg_reg_modules[i].offset, j);
 			*(ptr++) = val;
 		}
@@ -404,26 +385,9 @@ void pm_dbg_update_time(struct powerdomain *pwrdm, int prev)
 	/* Update timer for previous state */
 	t = sched_clock();
 
-	pwrdm->state_timer[prev] += t - pwrdm->timer;
+	pwrdm->time.state[prev] += t - pwrdm->timer;
 
 	pwrdm->timer = t;
-}
-
-void omap2_pm_wakeup_on_timer(u32 seconds, u32 milliseconds)
-{
-	u32 tick_rate, cycles;
-
-	if (!seconds && !milliseconds)
-		return;
-
-	tick_rate = clk_get_rate(omap_dm_timer_get_fclk(gptimer_wakeup));
-	cycles = tick_rate * seconds + tick_rate * milliseconds / 1000;
-	omap_dm_timer_stop(gptimer_wakeup);
-	omap_dm_timer_set_load_start(gptimer_wakeup, 0, 0xffffffff - cycles);
-
-	pr_info("PM: Resume timer in %u.%03u secs"
-		" (%d ticks at %d ticks/sec.)\n",
-		seconds, milliseconds, cycles, tick_rate);
 }
 
 static int clkdm_dbg_show_counter(struct clockdomain *clkdm, void *user)
@@ -443,10 +407,53 @@ static int clkdm_dbg_show_counter(struct clockdomain *clkdm, void *user)
 	return 0;
 }
 
+static int pwrdm_dbg_show_count_stats(struct powerdomain *pwrdm,
+	struct powerdomain_count_stats *stats, struct seq_file *s)
+{
+	int i;
+
+	seq_printf(s, "%s (%s)", pwrdm->name,
+			pwrdm_state_names[pwrdm->state]);
+
+	for (i = 0; i < PWRDM_MAX_PWRSTS; i++)
+		seq_printf(s, ",%s:%d", pwrdm_state_names[i],
+			stats->state[i]);
+
+	seq_printf(s, ",RET-LOGIC-OFF:%d", stats->ret_logic_off);
+	for (i = 0; i < pwrdm->banks; i++)
+		seq_printf(s, ",RET-MEMBANK%d-OFF:%d", i + 1,
+				stats->ret_mem_off[i]);
+
+	seq_printf(s, "\n");
+
+	return 0;
+}
+
+static int pwrdm_dbg_show_time_stats(struct powerdomain *pwrdm,
+	struct powerdomain_time_stats *stats, struct seq_file *s)
+{
+	int i;
+	u64 total = 0;
+
+	seq_printf(s, "%s (%s)", pwrdm->name,
+		pwrdm_state_names[pwrdm->state]);
+
+	for (i = 0; i < 4; i++)
+		total += stats->state[i];
+
+	for (i = 0; i < 4; i++)
+		seq_printf(s, ",%s:%lld (%lld%%)", pwrdm_state_names[i],
+			stats->state[i],
+			total ? div64_u64(stats->state[i] * 100, total) : 0);
+
+	seq_printf(s, "\n");
+
+	return 0;
+}
+
 static int pwrdm_dbg_show_counter(struct powerdomain *pwrdm, void *user)
 {
 	struct seq_file *s = (struct seq_file *)user;
-	int i;
 
 	if (strcmp(pwrdm->name, "emu_pwrdm") == 0 ||
 		strcmp(pwrdm->name, "wkup_pwrdm") == 0 ||
@@ -457,18 +464,7 @@ static int pwrdm_dbg_show_counter(struct powerdomain *pwrdm, void *user)
 		printk(KERN_ERR "pwrdm state mismatch(%s) %d != %d\n",
 			pwrdm->name, pwrdm->state, pwrdm_read_pwrst(pwrdm));
 
-	seq_printf(s, "%s (%s)", pwrdm->name,
-			pwrdm_state_names[pwrdm->state]);
-	for (i = 0; i < PWRDM_MAX_PWRSTS; i++)
-		seq_printf(s, ",%s:%d", pwrdm_state_names[i],
-			pwrdm->state_counter[i]);
-
-	seq_printf(s, ",RET-LOGIC-OFF:%d", pwrdm->ret_logic_off_counter);
-	for (i = 0; i < pwrdm->banks; i++)
-		seq_printf(s, ",RET-MEMBANK%d-OFF:%d", i + 1,
-				pwrdm->ret_mem_off_counter[i]);
-
-	seq_printf(s, "\n");
+	pwrdm_dbg_show_count_stats(pwrdm, &pwrdm->count, s);
 
 	return 0;
 }
@@ -476,7 +472,6 @@ static int pwrdm_dbg_show_counter(struct powerdomain *pwrdm, void *user)
 static int pwrdm_dbg_show_timer(struct powerdomain *pwrdm, void *user)
 {
 	struct seq_file *s = (struct seq_file *)user;
-	int i;
 
 	if (strcmp(pwrdm->name, "emu_pwrdm") == 0 ||
 		strcmp(pwrdm->name, "wkup_pwrdm") == 0 ||
@@ -485,14 +480,50 @@ static int pwrdm_dbg_show_timer(struct powerdomain *pwrdm, void *user)
 
 	pwrdm_state_switch(pwrdm);
 
-	seq_printf(s, "%s (%s)", pwrdm->name,
-		pwrdm_state_names[pwrdm->state]);
+	pwrdm_dbg_show_time_stats(pwrdm, &pwrdm->time, s);
 
-	for (i = 0; i < 4; i++)
-		seq_printf(s, ",%s:%lld", pwrdm_state_names[i],
-			pwrdm->state_timer[i]);
+	return 0;
+}
 
-	seq_printf(s, "\n");
+static int pwrdm_dbg_show_last_counter(struct powerdomain *pwrdm, void *user)
+{
+	struct seq_file *s = (struct seq_file *)user;
+	struct powerdomain_count_stats stats;
+	int i;
+
+	if (strcmp(pwrdm->name, "emu_pwrdm") == 0 ||
+		strcmp(pwrdm->name, "wkup_pwrdm") == 0 ||
+		strncmp(pwrdm->name, "dpll", 4) == 0)
+		return 0;
+
+	stats = pwrdm->count;
+	for (i = 0; i < PWRDM_MAX_PWRSTS; i++)
+		stats.state[i] -= pwrdm->last_count.state[i];
+	for (i = 0; i < PWRDM_MAX_MEM_BANKS; i++)
+		stats.ret_mem_off[i] -= pwrdm->last_count.ret_mem_off[i];
+	stats.ret_logic_off -= pwrdm->last_count.ret_logic_off;
+
+	pwrdm->last_count = pwrdm->count;
+
+	pwrdm_dbg_show_count_stats(pwrdm, &stats, s);
+
+	return 0;
+}
+
+static int pwrdm_dbg_show_last_timer(struct powerdomain *pwrdm, void *user)
+{
+	struct seq_file *s = (struct seq_file *)user;
+	struct powerdomain_time_stats stats;
+	int i;
+
+	stats = pwrdm->time;
+	for (i = 0; i < PWRDM_MAX_PWRSTS; i++)
+		stats.state[i] -= pwrdm->last_time.state[i];
+
+	pwrdm->last_time = pwrdm->time;
+
+	pwrdm_dbg_show_time_stats(pwrdm, &stats, s);
+
 	return 0;
 }
 
@@ -512,6 +543,18 @@ static int pm_dbg_show_timers(struct seq_file *s, void *unused)
 	return 0;
 }
 
+static int pm_dbg_show_last_counters(struct seq_file *s, void *unused)
+{
+	pwrdm_for_each(pwrdm_dbg_show_last_counter, s);
+	return 0;
+}
+
+static int pm_dbg_show_last_timers(struct seq_file *s, void *unused)
+{
+	pwrdm_for_each(pwrdm_dbg_show_last_timer, s);
+	return 0;
+}
+
 static int pm_dbg_open(struct inode *inode, struct file *file)
 {
 	switch ((int)inode->i_private) {
@@ -519,8 +562,14 @@ static int pm_dbg_open(struct inode *inode, struct file *file)
 		return single_open(file, pm_dbg_show_counters,
 			&inode->i_private);
 	case DEBUG_FILE_TIMERS:
-	default:
 		return single_open(file, pm_dbg_show_timers,
+			&inode->i_private);
+	case DEBUG_FILE_LAST_COUNTERS:
+		return single_open(file, pm_dbg_show_last_counters,
+			&inode->i_private);
+	case DEBUG_FILE_LAST_TIMERS:
+	default:
+		return single_open(file, pm_dbg_show_last_timers,
 			&inode->i_private);
 	};
 }
@@ -544,7 +593,7 @@ static const struct file_operations debug_reg_fops = {
 	.release        = single_release,
 };
 
-int pm_dbg_regset_init(int reg_set)
+int __init pm_dbg_regset_init(int reg_set)
 {
 	char name[2];
 
@@ -595,6 +644,47 @@ static int pwrdm_suspend_set(void *data, u64 val)
 DEFINE_SIMPLE_ATTRIBUTE(pwrdm_suspend_fops, pwrdm_suspend_get,
 			pwrdm_suspend_set, "%llu\n");
 
+#ifdef CONFIG_PM_ADVANCED_DEBUG
+static bool is_addr_valid()
+{
+	int saved_reg_addr_max = 0;
+	/* Only for OMAP4 for the timebeing */
+	if (!cpu_is_omap44xx())
+		return false;
+
+	saved_reg_num = (saved_reg_num > PM_DEBUG_MAX_SAVED_REGS) ?
+		PM_DEBUG_MAX_SAVED_REGS : saved_reg_num;
+
+	saved_reg_addr_max = saved_reg_addr + (saved_reg_num * 4) - 1;
+
+	if (saved_reg_addr >= PM_DEBUG_PRM_MIN &&
+		saved_reg_addr_max <= PM_DEBUG_PRM_MAX)
+			return true;
+	if (saved_reg_addr >= PM_DEBUG_CM1_MIN &&
+		saved_reg_addr_max <= PM_DEBUG_CM1_MAX)
+			return true;
+	if (saved_reg_addr >= PM_DEBUG_CM2_MIN &&
+		saved_reg_addr_max <= PM_DEBUG_CM2_MAX)
+			return true;
+	return false;
+}
+
+void omap4_pm_suspend_save_regs()
+{
+	int i = 0;
+	if (!saved_reg_num || !is_addr_valid())
+		return;
+
+	saved_reg_num_used = saved_reg_num;
+
+	for (i = 0; i < saved_reg_num; i++) {
+		saved_reg_buff[1][i] = omap_readl(saved_reg_addr + (i*4));
+		saved_reg_buff[0][i] = saved_reg_addr + (i*4);
+	}
+	return;
+}
+#endif
+
 static int __init pwrdms_setup(struct powerdomain *pwrdm, void *dir)
 {
 	int i;
@@ -604,7 +694,7 @@ static int __init pwrdms_setup(struct powerdomain *pwrdm, void *dir)
 	t = sched_clock();
 
 	for (i = 0; i < 4; i++)
-		pwrdm->state_timer[i] = 0;
+		pwrdm->time.state[i] = 0;
 
 	pwrdm->timer = t;
 
@@ -623,7 +713,19 @@ static int option_get(void *data, u64 *val)
 {
 	u32 *option = data;
 
+	if (option == &enable_off_mode) {
+		enable_off_mode = off_mode_enabled;
+	}
+
 	*val = *option;
+#ifdef CONFIG_PM_ADVANCED_DEBUG
+	if (option == &saved_reg_addr) {
+		int i;
+		for (i = 0; i < saved_reg_num_used; i++)
+			pr_info(" %x = %x\n", saved_reg_buff[0][i],
+				saved_reg_buff[1][i]);
+	}
+#endif
 
 	return 0;
 }
@@ -635,27 +737,19 @@ static int option_set(void *data, u64 val)
 	if (option == &wakeup_timer_milliseconds && val >= 1000)
 		return -EINVAL;
 
-	if (cpu_is_omap44xx() && (omap_type() == OMAP2_DEVICE_TYPE_GP))
+	if (cpu_is_omap443x() && omap_type() == OMAP2_DEVICE_TYPE_GP)
 		*option = 0;
 	else
 		*option = val;
 
 	if (option == &enable_off_mode) {
+		if (val)
+			omap_pm_enable_off_mode();
+		else
+			omap_pm_disable_off_mode();
 		if (cpu_is_omap34xx())
 			omap3_pm_off_mode_enable(val);
-		else if (cpu_is_omap44xx())
-			omap4_pm_off_mode_enable(val);
 	}
-	if (option == &enable_sr_vp_debug && val)
-		pr_notice("Beware that enabling this option will allow user "
-			"to override the system defined vp and sr parameters "
-			"All the updated parameters will take effect next "
-			"time smartreflex is enabled. Also this option "
-			"disables the automatic vp errorgain and sr errormin "
-			"limit changes as per the voltage. Users will have "
-			"to explicitly write values into the debug fs "
-			"entries corresponding to these if they want to see "
-			"them changing according to the VDD voltage\n");
 
 	return 0;
 }
@@ -671,12 +765,14 @@ static int __init pm_dbg_init(void)
 	if (pm_dbg_init_done)
 		return 0;
 
-	if (cpu_is_omap34xx())
+	if (cpu_is_omap34xx()) {
 		pm_dbg_reg_modules = omap3_pm_reg_modules;
-	else if (cpu_is_omap44xx())
-		pm_dbg_reg_modules = omap4_pm_reg_modules;
-	else
+	} else if (cpu_is_omap44xx()) {
+		/* Allow pm_dbg_init on OMAP4. */
+	} else {
 		printk(KERN_ERR "%s: only OMAP3 supported\n", __func__);
+		return -ENODEV;
+	}
 
 	d = debugfs_create_dir("pm_debug", NULL);
 	if (IS_ERR(d))
@@ -686,8 +782,15 @@ static int __init pm_dbg_init(void)
 		d, (void *)DEBUG_FILE_COUNTERS, &debug_fops);
 	(void) debugfs_create_file("time", S_IRUGO,
 		d, (void *)DEBUG_FILE_TIMERS, &debug_fops);
+	(void) debugfs_create_file("last_count", S_IRUGO,
+		d, (void *)DEBUG_FILE_LAST_COUNTERS, &debug_fops);
+	(void) debugfs_create_file("last_time", S_IRUGO,
+		d, (void *)DEBUG_FILE_LAST_TIMERS, &debug_fops);
 
 	pwrdm_for_each(pwrdms_setup, (void *)d);
+
+	if (cpu_is_omap44xx())
+		goto skip_reg_debufs;
 
 	pm_dbg_dir = debugfs_create_dir("registers", d);
 	if (IS_ERR(pm_dbg_dir))
@@ -704,22 +807,33 @@ static int __init pm_dbg_init(void)
 
 		}
 
-	(void) debugfs_create_file("enable_off_mode", S_IRUGO | S_IWUSR, d,
-				   &enable_off_mode, &pm_dbg_option_fops);
 	(void) debugfs_create_file("sleep_while_idle", S_IRUGO | S_IWUSR, d,
 				   &sleep_while_idle, &pm_dbg_option_fops);
+
+skip_reg_debufs:
+#ifdef CONFIG_OMAP_ALLOW_OSWR
+	(void) debugfs_create_file("enable_off_mode", S_IRUGO | S_IWUSR, d,
+				   &enable_off_mode, &pm_dbg_option_fops);
+#endif
 	(void) debugfs_create_file("wakeup_timer_seconds", S_IRUGO | S_IWUSR, d,
 				   &wakeup_timer_seconds, &pm_dbg_option_fops);
 	(void) debugfs_create_file("wakeup_timer_milliseconds",
 			S_IRUGO | S_IWUSR, d, &wakeup_timer_milliseconds,
 			&pm_dbg_option_fops);
-	(void) debugfs_create_file("enable_sr_vp_debug",  S_IRUGO | S_IWUSR, d,
-				   &enable_sr_vp_debug, &pm_dbg_option_fops);
-	pm_dbg_main_dir = d;
+
+#ifdef CONFIG_PM_ADVANCED_DEBUG
+	(void) debugfs_create_file("saved_reg_show",
+			S_IRUGO | S_IWUSR, d, &saved_reg_addr,
+			&pm_dbg_option_fops);
+	debugfs_create_u32("saved_reg_addr",  S_IRUGO | S_IWUGO, d,
+				&saved_reg_addr);
+	debugfs_create_u32("saved_reg_num",  S_IRUGO | S_IWUGO, d,
+				 &saved_reg_num);
+#endif
 	pm_dbg_init_done = 1;
 
 	return 0;
 }
-postcore_initcall(pm_dbg_init);
+arch_initcall(pm_dbg_init);
 
 #endif

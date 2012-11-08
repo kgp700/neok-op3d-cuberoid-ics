@@ -32,14 +32,16 @@
 #include <linux/clk.h>
 
 #include <mach/irqs.h>
+#include "../../../../arch/arm/mach-omap2/control.h"
 #include <plat/mux.h>
+#include <plat/i2c.h>
 #include <plat/omap-pm.h>
 #include <plat/omap_device.h>
 
 #define OMAP_I2C_SIZE		0x3f
 #define OMAP1_I2C_BASE		0xfffb3800
 
-static const char name[] = "i2c_omap";
+static const char name[] = "omap_i2c";
 
 #define I2C_RESOURCE_BUILDER(base, irq)			\
 	{						\
@@ -73,12 +75,24 @@ static struct omap_i2c_bus_platform_data i2c_pdata[OMAP_I2C_MAX_CONTROLLERS];
 static struct platform_device omap_i2c_devices[] = {
 	I2C_DEV_BUILDER(1, i2c_resources[0], &i2c_pdata[0]),
 };
+/**
+ * omap2_i2c_reset - reset the omap i2c module.
+ * @dev: struct device*
+ */
+
+static int omap2_i2c_reset(struct device *dev)
+{
+	int r = 0;
+	struct platform_device *pdev = to_platform_device(dev);
+	struct omap_device *odev = to_omap_device(pdev);
+	struct omap_hwmod *oh;
+
+	oh = odev->hwmods[0];
+	r = omap_hwmod_reset(oh);
+	return r;
+}
 
 #define OMAP_I2C_CMDLINE_SETUP	(BIT(31))
-
-#define I2C_ICLK	0
-#define I2C_FCLK	1
-static struct clk *omap_i2c_clks[ARRAY_SIZE(omap_i2c_devices)][2];
 
 static int __init omap_i2c_nr_ports(void)
 {
@@ -96,56 +110,26 @@ static int __init omap_i2c_nr_ports(void)
 	return ports;
 }
 
-static int omap1_i2c_device_enable(struct platform_device *pdev)
-{
-	struct clk *c;
-	c = omap_i2c_clks[pdev->id - 1][I2C_ICLK];
-	if (c && !IS_ERR(c))
-		clk_enable(c);
-
-	c = omap_i2c_clks[pdev->id - 1][I2C_FCLK];
-	if (c && !IS_ERR(c))
-		clk_enable(c);
-
-	return 0;
-}
-
-static int omap1_i2c_device_idle(struct platform_device *pdev)
-{
-	struct clk *c;
-
-	c = omap_i2c_clks[pdev->id - 1][I2C_FCLK];
-	if (c && !IS_ERR(c))
-		clk_disable(c);
-
-	c = omap_i2c_clks[pdev->id - 1][I2C_ICLK];
-	if (c && !IS_ERR(c))
-		clk_disable(c);
-
-	return 0;
-}
-
 static inline int omap1_i2c_add_bus(int bus_id)
 {
 	struct platform_device *pdev;
 	struct omap_i2c_bus_platform_data *pdata;
+	struct resource *res;
 
 	omap1_i2c_mux_pins(bus_id);
 
 	pdev = &omap_i2c_devices[bus_id - 1];
+	res = pdev->resource;
+	res[0].start = OMAP1_I2C_BASE;
+	res[0].end = res[0].start + OMAP_I2C_SIZE;
+	res[1].start = INT_I2C;
 	pdata = &i2c_pdata[bus_id - 1];
-
-	/* idle and shutdown share the same code */
-	pdata->device_enable = omap1_i2c_device_enable;
-	pdata->device_idle = omap1_i2c_device_idle;
-	pdata->device_shutdown = omap1_i2c_device_idle;
-
-	omap_i2c_clks[bus_id - 1][I2C_ICLK] = clk_get(&pdev->dev, "ick");
-	omap_i2c_clks[bus_id - 1][I2C_FCLK] = clk_get(&pdev->dev, "fck");
 
 	return platform_device_register(pdev);
 }
 
+
+#ifdef CONFIG_ARCH_OMAP2PLUS
 static struct omap_device_pm_latency omap_i2c_latency[] = {
 	[0] = {
 		.deactivate_func	= omap_device_idle_hwmods,
@@ -174,9 +158,6 @@ static inline int omap2_i2c_add_bus(int bus_id)
 	}
 
 	pdata = &i2c_pdata[bus_id - 1];
-	pdata->device_enable = omap_device_enable;
-	pdata->device_idle = omap_device_idle;
-	pdata->device_shutdown = omap_device_shutdown;
 	/*
 	 * When waiting for completion of a i2c transfer, we need to
 	 * set a wake up latency constraint for the MPU. This is to
@@ -184,8 +165,11 @@ static inline int omap2_i2c_add_bus(int bus_id)
 	 * completes.
 	 * Only omap3 has support for constraints
 	 */
-	if (cpu_is_omap34xx())
-		pdata->set_mpu_wkup_lat = omap_pm_set_max_mpu_wakeup_lat;
+	if (cpu_is_omap34xx() ||  cpu_is_omap44xx())
+		pdata->needs_wakeup_latency = true;
+
+	pdata->device_reset = omap2_i2c_reset;
+
 	od = omap_device_build(name, bus_id, oh, pdata,
 			sizeof(struct omap_i2c_bus_platform_data),
 			omap_i2c_latency, ARRAY_SIZE(omap_i2c_latency), 0);
@@ -193,6 +177,12 @@ static inline int omap2_i2c_add_bus(int bus_id)
 
 	return PTR_ERR(od);
 }
+#else
+static inline int omap2_i2c_add_bus(int bus_id)
+{
+	return 0;
+}
+#endif
 
 static int __init omap_i2c_add_bus(int bus_id)
 {
@@ -260,7 +250,6 @@ subsys_initcall(omap_register_i2c_bus_cmdline);
  * Returns 0 on success or an error code.
  */
 int __init omap_register_i2c_bus(int bus_id, u32 clkrate,
-			  struct omap_i2c_bus_board_data *pdata,
 			  struct i2c_board_info const *info,
 			  unsigned len)
 {
@@ -279,13 +268,109 @@ int __init omap_register_i2c_bus(int bus_id, u32 clkrate,
 
 	i2c_pdata[bus_id - 1].clkrate &= ~OMAP_I2C_CMDLINE_SETUP;
 
-	if ((pdata != NULL) && (pdata->handle != NULL)) {
-		i2c_pdata[bus_id - 1].handle = pdata->handle;
-		i2c_pdata[bus_id - 1].hwspinlock_lock
-						= pdata->hwspinlock_lock;
-		i2c_pdata[bus_id - 1].hwspinlock_unlock
-						= pdata->hwspinlock_unlock;
-	}
-
 	return omap_i2c_add_bus(bus_id);
 }
+
+/**
+ * omap_register_i2c_bus_board_data - register hwspinlock data
+ * @bus_id: bus id counting from number 1
+ * @pdata: pointer to the I2C bus board data
+ */
+void omap_register_i2c_bus_board_data(int bus_id,
+				struct omap_i2c_bus_board_data *pdata)
+{
+	BUG_ON(bus_id < 1 || bus_id > omap_i2c_nr_ports());
+
+	if ((pdata != NULL) && (pdata->handle != NULL)) {
+		i2c_pdata[bus_id - 1].handle = pdata->handle;
+		i2c_pdata[bus_id - 1].hwspin_lock_timeout =
+					pdata->hwspin_lock_timeout;
+		i2c_pdata[bus_id - 1].hwspin_unlock = pdata->hwspin_unlock;
+	}
+}
+
+/**
+ * omap2_i2c_pullup - setup pull-up resistors for I2C bus
+ * @bus_id: bus id counting from number 1
+ * @sda_pullup: Pull-up resistor for SDA and SCL pins
+ *
+ */
+void omap2_i2c_pullup(int bus_id, enum omap_i2c_pullup_values pullup)
+{
+	u32 val = 0;
+
+
+	if (bus_id < 1 || bus_id > omap_i2c_nr_ports() ||
+			pullup > I2C_PULLUP_STD_NA_FAST_300_OM) {
+		pr_err("%s:Wrong pullup (%d) or use wrong I2C port (%d)\n",
+			__func__, pullup, bus_id);
+		return;
+	}
+
+	val = omap4_ctrl_pad_readl(OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_I2C_0);
+	switch (bus_id) {
+	case 1:
+		/* Setup PULL-UP resistor for I2C-1 */
+		val &= ~(OMAP4_I2C1_SDA_LOAD_BITS_MASK  |
+			OMAP4_I2C1_SCL_LOAD_BITS_MASK  |
+			OMAP4_I2C1_SDA_PULLUPRESX_MASK |
+			OMAP4_I2C1_SCL_PULLUPRESX_MASK);
+		val |= ((pullup << OMAP4_I2C1_SDA_LOAD_BITS_SHIFT) |
+			(pullup << OMAP4_I2C1_SCL_LOAD_BITS_SHIFT));
+		break;
+	case 2:
+		/* Setup PULL-UP resistor for I2C-2 */
+		val &= ~(OMAP4_I2C2_SDA_LOAD_BITS_MASK  |
+			OMAP4_I2C2_SCL_LOAD_BITS_MASK  |
+			OMAP4_I2C2_SDA_PULLUPRESX_MASK |
+			OMAP4_I2C2_SCL_PULLUPRESX_MASK);
+		val |= ((pullup << OMAP4_I2C2_SDA_LOAD_BITS_SHIFT) |
+			(pullup << OMAP4_I2C2_SCL_LOAD_BITS_SHIFT));
+		break;
+	case 3:
+		/* Setup PULL-UP resistor for I2C-3 */
+		val &= ~(OMAP4_I2C3_SDA_LOAD_BITS_MASK  |
+			OMAP4_I2C3_SCL_LOAD_BITS_MASK  |
+			OMAP4_I2C3_SDA_PULLUPRESX_MASK |
+			OMAP4_I2C3_SCL_PULLUPRESX_MASK);
+		val |= ((pullup << OMAP4_I2C3_SDA_LOAD_BITS_SHIFT) |
+			(pullup << OMAP4_I2C3_SCL_LOAD_BITS_SHIFT));
+		break;
+	case 4:
+		/* Setup PULL-UP resistor for I2C-4 */
+		val &= ~(OMAP4_I2C4_SDA_LOAD_BITS_MASK  |
+			OMAP4_I2C4_SCL_LOAD_BITS_MASK  |
+			OMAP4_I2C4_SDA_PULLUPRESX_MASK |
+			OMAP4_I2C4_SCL_PULLUPRESX_MASK);
+		val |= ((pullup << OMAP4_I2C4_SDA_LOAD_BITS_SHIFT) |
+			(pullup << OMAP4_I2C4_SCL_LOAD_BITS_SHIFT));
+		break;
+	default:
+		return;
+	}
+
+	omap4_ctrl_pad_writel(val, OMAP4_CTRL_MODULE_PAD_CORE_CONTROL_I2C_0);
+}
+
+/**
+ * omap_i2c_get_hwspinlockid - Get HWSPINLOCK ID for I2C device
+ * @dev: I2C device
+ *
+ * returns the hwspinlock id or -1 if does not exist
+ */
+int omap_i2c_get_hwspinlockid(struct device *dev)
+{
+	struct omap_i2c_bus_platform_data *pdata;
+
+	pdata = dev_get_platdata(dev);
+	if (!pdata) {
+		dev_err(dev, "%s: platform data is missing\n", __func__);
+		return -EINVAL;
+	}
+
+	if (pdata->handle != NULL)
+		return hwspin_lock_get_id(pdata->handle);
+	else
+		return -1;
+}
+EXPORT_SYMBOL_GPL(omap_i2c_get_hwspinlockid);

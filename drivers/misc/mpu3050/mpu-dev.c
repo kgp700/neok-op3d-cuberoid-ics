@@ -1057,8 +1057,8 @@ int mpu3050_probe(struct i2c_client *client,
 	} else {
 		mldl_cfg->pdata = pdata;
 
-#if defined(CONFIG_MPU_SENSORS_MPU3050_MODULE) || \
-    defined(CONFIG_MPU_SENSORS_MPU6000_MODULE)
+#if defined(CONFIG_MPU_SENSORS_MPU3050) || \
+    defined(CONFIG_MPU_SENSORS_MPU6000)
 		pdata->accel.get_slave_descr = get_accel_slave_descr;
 		pdata->compass.get_slave_descr = get_compass_slave_descr;
 		pdata->pressure.get_slave_descr = get_pressure_slave_descr;

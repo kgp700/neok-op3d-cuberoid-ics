@@ -1,30 +1,30 @@
 /*
-** =========================================================================
-** File:
-**     tspdrv.h
-**
-** Description: 
-**     Constants and type definitions for the TouchSense Kernel Module.
-**
-** Portions Copyright (c) 2008-2010 Immersion Corporation. All Rights Reserved. 
-**
-** This file contains Original Code and/or Modifications of Original Code 
-** as defined in and that are subject to the GNU Public License v2 - 
-** (the 'License'). You may not use this file except in compliance with the 
-** License. You should have received a copy of the GNU General Public License 
-** along with this program; if not, write to the Free Software Foundation, Inc.,
-** 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or contact 
-** TouchSenseSales@immersion.com.
-**
-** The Original Code and all software distributed under the License are 
-** distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER 
-** EXPRESS OR IMPLIED, AND IMMERSION HEREBY DISCLAIMS ALL SUCH WARRANTIES, 
-** INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY, FITNESS 
-** FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT. Please see 
-** the License for the specific language governing rights and limitations 
-** under the License.
-** =========================================================================
-*/
+ * =========================================================================
+ * File:
+ *     tspdrv.h
+ *
+ * Description: 
+ *     Constants and type definitions for the TouchSense Kernel Module.
+ *
+ * Portions Copyright (c) 2008-2010 Immersion Corporation. All Rights Reserved. 
+ *
+ * This file contains Original Code and/or Modifications of Original Code 
+ * as defined in and that are subject to the GNU Public License v2 - 
+ * (the 'License'). You may not use this file except in compliance with the 
+ * License. You should have received a copy of the GNU General Public License 
+ * along with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or contact 
+ * TouchSenseSales@immersion.com.
+ *
+ * The Original Code and all software distributed under the License are 
+ * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER 
+ * EXPRESS OR IMPLIED, AND IMMERSION HEREBY DISCLAIMS ALL SUCH WARRANTIES, 
+ * INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY, FITNESS 
+ * FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT. Please see 
+ * the License for the specific language governing rights and limitations 
+ * under the License.
+ * =========================================================================
+ */
 
 #ifndef _TSPDRV_H
 #define _TSPDRV_H
@@ -58,17 +58,17 @@ typedef VibeInt32	VibeStatus;
 
 typedef struct
 {
-    VibeUInt8 nActuatorIndex;  /* 1st byte is actuator index */
-    VibeUInt8 nBitDepth;       /* 2nd byte is bit depth */
-    VibeUInt8 nBufferSize;     /* 3rd byte is data size */
-    VibeUInt8 dataBuffer[VIBE_OUTPUT_SAMPLE_SIZE];
+	VibeUInt8 nActuatorIndex;  /* 1st byte is actuator index */
+	VibeUInt8 nBitDepth;       /* 2nd byte is bit depth */
+	VibeUInt8 nBufferSize;     /* 3rd byte is data size */
+	VibeUInt8 dataBuffer[VIBE_OUTPUT_SAMPLE_SIZE];
 } samples_buffer;
 
 typedef struct
 {
-    VibeInt8 nIndexPlayingBuffer;
-    VibeUInt8 nIndexOutputValue;
-    samples_buffer actuatorSamples[2]; /* Use 2 buffers to receive samples from user mode */
+	VibeInt8 nIndexPlayingBuffer;
+	VibeUInt8 nIndexOutputValue;
+	samples_buffer actuatorSamples[2]; /* Use 2 buffers to receive samples from user mode */
 } actuator_samples_buffer;
 
 #endif
@@ -104,5 +104,22 @@ typedef struct
         #define DbgRecord(_x_)
     #endif /* defined(VIBE_RECORD) && defined(VIBE_DEBUG) */
 #endif  /* __KERNEL__ */
+
+    /* LGE_SJIT 2011-12-01 [dojip.kim@lge.com]
+     * from tspdrv.c so making it as platform-indenpendent driver
+     *  int gpio_enable
+     *  int pwm_port
+     *  int freq
+     *  int duty
+     */
+    /* LGE_SJIT 2011-11-30 [dojip.kim@lge.com] support for timed output class */
+    /* GE_CHANGE [jaekyung.oh@lge.com] 2011-09-04, [P940] For Rev.C TSPDEV */
+    struct pwm_vib_data {
+	    int (*power)(bool on);
+	    int gpio_enable;
+	    int pwm_port;
+	    int pwm_freq;
+	    int pwm_duty;
+    };
 
 #endif  /* _TSPDRV_H */

@@ -12,14 +12,13 @@
  * XXX Missing values for the OMAP4 DPLL_USB
  * XXX Missing min_multiplier values for all OMAP4 DPLLs
  */
+#define OMAP4470_MAX_DPLL_MULT	4095
+#define OMAP4470_MAX_DPLL_DIV	256
 #define OMAP4430_MAX_DPLL_MULT	2047
 #define OMAP4430_MAX_DPLL_DIV	128
-#define OMAP4430_REGM4XEN_MULT	4
+#define OMAP4430_REGM4XEN_MULT 4
 
 int omap4xxx_clk_init(void);
 int omap4_core_dpll_m2_set_rate(struct clk *clk, unsigned long rate);
-int omap4_core_dpll_set_rate(struct clk *clk, unsigned long rate);
-long omap4_dpll_regm4xen_round_rate(struct clk *clk, unsigned long target_rate);
-unsigned long omap4_dpll_regm4xen_recalc(struct clk *clk);
 
 #endif

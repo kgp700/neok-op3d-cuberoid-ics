@@ -258,7 +258,7 @@ static struct platform_driver pxa2xx_ac97_driver = {
 	.probe		= pxa2xx_ac97_dev_probe,
 	.remove		= __devexit_p(pxa2xx_ac97_dev_remove),
 	.driver		= {
-		.name	= "pxa2xx-ac97-dai",
+		.name	= "pxa2xx-ac97",
 		.owner	= THIS_MODULE,
 	},
 };

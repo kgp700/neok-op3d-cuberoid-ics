@@ -121,19 +121,23 @@ int lge_static_nvdata_raw_read(int offset, char* buf, int size)
 	set_fs(KERNEL_DS);
 	h_file = sys_open(LGE_NVDATA_STATIC_PARTITION, O_RDWR,0);
 
+			printk("lge_static_nvdata_raw_read : h_file = %d.\n",h_file);
+
 	if(h_file >= 0)
 	{
 		sys_lseek( h_file, offset, 0 );
 
 		ret = sys_read( h_file, buf, size);
 
+		sys_close(h_file);
+
 		if( ret != size )
 		{
-			printk("Can't write static NVDATA.\n");
+			printk("Can't read static NVDATA.\n");
 			return ret;
 		}
 
-		sys_close(h_file);
+		//sys_close(h_file);
 	}
 	else
 	{
@@ -162,13 +166,15 @@ int lge_static_nvdata_raw_write(int offset, char* buf, int size)
 
 		ret = sys_write( h_file, buf, size);
 
+		sys_close(h_file);
+
 		if( ret != size )
 		{
 			printk("Can't write static NVDATA.\n");
 			return ret;
 		}
 
-		sys_close(h_file);
+		//sys_close(h_file);
 	}
 	else
 	{

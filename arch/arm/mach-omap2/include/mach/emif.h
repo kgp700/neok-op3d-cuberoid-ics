@@ -21,7 +21,7 @@
 #define EMIF2	1
 
 /* The maximum frequency at which the LPDDR2 interface can operate in Hz*/
-#define MAX_LPDDR2_FREQ	400000000	/* 400 MHz */
+#define MAX_LPDDR2_FREQ	466666666	/* 466 MHz */
 
 /* 19.2 MHz to be used for finding initialization values */
 #define EMIF_FREQ_19_2_MHZ 19200000	/* 19.2 MHz */
@@ -166,32 +166,6 @@
 #define DPD_DISABLE	0
 #define DPD_ENABLE	1
 
-/* Maximum delay before Low Power Modes */
-#define REG_CS_TIM		0xF
-#define REG_SR_TIM		0xF
-#define REG_PD_TIM		0xF
-
-/* EMIF_PWR_MGMT_CTRL register */
-#define EMIF_PWR_MGMT_CTRL (\
-	((REG_CS_TIM << OMAP44XX_REG_CS_TIM_SHIFT) & OMAP44XX_REG_CS_TIM_MASK)|\
-	((REG_SR_TIM << OMAP44XX_REG_SR_TIM_SHIFT) & OMAP44XX_REG_SR_TIM_MASK)|\
-	((REG_PD_TIM << OMAP44XX_REG_PD_TIM_SHIFT) & OMAP44XX_REG_PD_TIM_MASK)|\
-	((REG_PD_TIM << OMAP44XX_REG_PD_TIM_SHIFT) & OMAP44XX_REG_PD_TIM_MASK)|\
-	((LP_MODE_DISABLE << OMAP44XX_REG_LP_MODE_SHIFT)\
-			& OMAP44XX_REG_LP_MODE_MASK) |\
-	((DPD_DISABLE << OMAP44XX_REG_DPD_EN_SHIFT)\
-			& OMAP44XX_REG_DPD_EN_MASK))\
-
-#define EMIF_PWR_MGMT_CTRL_SHDW (\
-	((REG_CS_TIM << OMAP44XX_REG_CS_TIM_SHDW_SHIFT)\
-			& OMAP44XX_REG_CS_TIM_SHDW_MASK) |\
-	((REG_SR_TIM << OMAP44XX_REG_SR_TIM_SHDW_SHIFT)\
-			& OMAP44XX_REG_SR_TIM_SHDW_MASK) |\
-	((REG_PD_TIM << OMAP44XX_REG_PD_TIM_SHDW_SHIFT)\
-			& OMAP44XX_REG_PD_TIM_SHDW_MASK) |\
-	((REG_PD_TIM << OMAP44XX_REG_PD_TIM_SHDW_SHIFT)\
-			& OMAP44XX_REG_PD_TIM_SHDW_MASK))
-
 /*
  * Value of bits 12:31 of DDR_PHY_CTRL_1 register:
  * All these fields have magic values dependent on frequency and
@@ -234,7 +208,7 @@
 #endif
 
 /* Details of the devices connected to each chip-select of an EMIF instance */
-struct emif_device_details{
+struct emif_device_details {
 	const struct lpddr2_device_info *cs0_device;
 	const struct lpddr2_device_info *cs1_device;
 };
@@ -249,7 +223,7 @@ struct emif_device_details{
  * freq_mhz_ceil - frequency in mhz rounded up is used for identifying the
  * right speed bin and the corresponding timings table for the LPDDR2 device
  */
-struct freq_info{
+struct freq_info {
 	u16 period_num;
 	u16 period_den;
 	u16 freq_mhz_floor;
@@ -261,7 +235,7 @@ struct freq_info{
  * The calculation function fills in this structure to be later used for
  * initialization and DVFS
  */
-struct emif_regs{
+struct emif_regs {
 	u32 freq;
 	u8 RL_final;
 	u32 sdram_config_init;
@@ -284,9 +258,11 @@ struct emif_regs{
 
 int omap_emif_setup_registers(u32 freq,
 			      u32 volt_state);
+void omap_emif_frequency_pre_notify(void);
+void omap_emif_frequency_post_notify(void);
 int omap_emif_setup_device_details(
 			const struct emif_device_details *emif1_devices,
 			const struct emif_device_details *emif2_devices);
-void omap_init_emif_timings(void);
 
+void emif_clear_irq(int emif_id);
 #endif
